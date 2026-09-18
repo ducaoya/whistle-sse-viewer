@@ -230,4 +230,20 @@ test('buildPreview: limit=-1 不裁剪，返回完整内容', () => {
   assert.strictEqual(result.omitted, 0);
 });
 
+test('normalizeConfig: 空字符串回退默认（配置页留空=用默认值）', () => {
+  assert.strictEqual(SseView.normalizeConfig({ previewLimit: '' }).previewLimit, 3000);
+  assert.strictEqual(SseView.normalizeConfig({ previewLimit: '   ' }).previewLimit, 3000);
+  assert.strictEqual(
+    SseView.normalizeConfig({ previewLimit: '' }, { previewLimit: 5000 }).previewLimit,
+    5000
+  );
+});
+
+test('buildPreview: 空/非法 limit 回退内置默认 3000', () => {
+  const long = 'y'.repeat(5000);
+  ['', 'abc', null, undefined, 0].forEach((bad) => {
+    assert.strictEqual(SseView.buildPreview(long, bad).text.length, 3000, 'bad=' + bad);
+  });
+});
+
 console.log('\n通过 ' + passed + ' 项' + (process.exitCode ? '（存在失败）' : ''));

@@ -178,8 +178,14 @@
 
   function renderLimitHint() {
     var raw = String(dom.limit.value).trim();
+    if (raw === '') {
+      // 留空视为使用默认值
+      dom.limitHint.className = 'hint';
+      dom.limitHint.textContent = '留空将使用默认值 ' + defaults.previewLimit;
+      return defaults.previewLimit;
+    }
     var value = Number(raw);
-    if (raw === '' || !isFinite(value) || Math.floor(value) !== value || (value !== -1 && value <= 0)) {
+    if (!isFinite(value) || Math.floor(value) !== value || (value !== -1 && value <= 0)) {
       dom.limitHint.textContent = '请输入 -1（不裁剪）或大于 0 的整数';
       dom.limitHint.className = 'hint warn';
       return null;
@@ -209,6 +215,7 @@
 
   function renderDefaultTags() {
     dom.tagLimit.textContent = '默认 ' + defaults.previewLimit;
+    dom.limit.placeholder = String(defaults.previewLimit);
     dom.tagMode.textContent = '默认 ' + defaults.previewMode;
     dom.tagSep.textContent = '默认 ' + (defaults.trailingSeparator ? '补' : '不补');
   }
@@ -218,6 +225,15 @@
     if (value === null) {
       setStatus('预览字符数不合法', 'err');
     } else {
+      setStatus('');
+    }
+  });
+
+  // 失焦时若为空，自动填上默认值
+  dom.limit.addEventListener('blur', function () {
+    if (String(dom.limit.value).trim() === '') {
+      dom.limit.value = defaults.previewLimit;
+      renderLimitHint();
       setStatus('');
     }
   });
