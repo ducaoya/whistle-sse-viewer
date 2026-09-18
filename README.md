@@ -6,6 +6,7 @@ Whistle 插件：在 **Response 面板**新增一个 **SSE** Tab，用于查看�
 - **预览**：内容区默认展示尾部 3000 字符，流式过程中自动滚动到底部
 - **View All**：弹出**近全屏**弹窗展示完整内容（覆盖整个 Whistle 界面，可滚动、可全选，`Esc` / 遮罩 / 关闭按钮退出）
 - **Copy All**：一键把完整内容复制到剪贴板
+- **可配置**：`Plugins → whistle.sse-viewer → Option` 可调整预览字符数（`-1` 表示不裁剪）、预览段落、结尾补空行、`data:` JSON 格式化，保存后立即生效
 - **非 SSE 请求**：显示空态提示，不展示任何内容
 
 ## 界面
@@ -69,6 +70,7 @@ w2 start -A /path/to/plugins-root     # plugins-root/whistle.sse-viewer/package.
 - `previewLimit` 留空时按默认值处理，输入框失焦会自动填回默认值
 - `package.json` 的 `whistleConfig.inspectorConfig` 仅作为**默认值**（配置页会展示它）；需要改默认值时改它并 `w2 restart`
 - 配置页里点 **恢复默认** 会清除 localStorage 中的配置
+- 保存成功/失败会在右上角给出提示；输入非法、浏览器禁用存储（隐身模式）或写入失败时不会写入配置
 
 ## 工作原理
 
@@ -96,6 +98,10 @@ Whistle 的插件 Tab 是插件级静态注册，官方没有"按请求隐藏 Ta
 **Q：复制的文本比原始流少了最后一行空行？**
 
 Whistle 拆分帧时会去掉 `\n\n` 分隔符，还原时末尾的空行默认不补；需要与原始流完全一致时把 `trailingSeparator` 设为 `true`。
+
+**Q：配置页输入框没显示默认值 / 页面像是没生效？**
+
+先按 `Ctrl+F5` 硬刷新一次（插件更新后浏览器可能仍持有旧页面）。若仍异常，按 `F12` 看 Console：依赖脚本加载失败时页面顶部会显示红色报错。
 
 ## 已知限制
 
