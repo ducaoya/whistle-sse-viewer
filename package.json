@@ -1,0 +1,54 @@
+{
+  "name": "whistle.sse-viewer",
+  "version": "1.0.0",
+  "description": "Whistle 插件：在 Response 面板新增 SSE Tab，实时查看并一键复制完整 SSE 流内容",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/sse-view.test.js"
+  },
+  "whistleConfig": {
+    "inspectorsTab": {
+      "res": {
+        "name": "SSE",
+        "action": "/public/tab.html"
+      }
+    },
+    "inspectorConfig": {
+      "previewLimit": 3000,
+      "previewMode": "tail",
+      "trailingSeparator": false
+    }
+  },
+  "keywords": [
+    "whistle",
+    "whistle-plugin",
+    "sse",
+    "server-sent-events",
+    "debug",
+    "proxy"
+  ],
+  "author": "ducaoya",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ducaoya/whistle-sse-viewer.git"
+  },
+  "homepage": "https://github.com/ducaoya/whistle-sse-viewer#readme",
+  "bugs": {
+    "url": "https://github.com/ducaoya/whistle-sse-viewer/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=14"
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "public",
+    "README.md",
+    "LICENSE"
+  ]
+}

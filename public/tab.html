@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>SSE</title>
+<style>
+  :root {
+    --sse-bg: var(--b-default, #fff);
+    --sse-fg: var(--c-default, #333);
+    --sse-thin: var(--c-thin, #888);
+    --sse-border: var(--c-border, #dfe1e6);
+    --sse-bar: var(--b-bar, #f7f8fa);
+    --sse-link: var(--c-link, #1a73e8);
+    --sse-mono: Menlo, Consolas, "Courier New", monospace;
+  }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--sse-bg);
+    color: var(--sse-fg);
+    overflow: hidden;
+  }
+  .sse-app { position: relative; display: flex; flex-direction: column; height: 100%; }
+
+  .sse-bar {
+    display: flex; align-items: center; gap: 8px;
+    height: 26px; padding: 0 8px; flex: none;
+    background: var(--sse-bar); border-bottom: 1px solid var(--sse-border);
+    font-size: 12px;
+  }
+  .sse-meta { color: var(--sse-thin); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sse-meta b { color: var(--sse-fg); font-weight: 600; }
+  .sse-bar .spacer { flex: 1; }
+  .sse-btn {
+    height: 20px; padding: 0 8px; font-size: 12px; line-height: 18px; cursor: pointer;
+    color: var(--sse-fg); background: transparent; border: 1px solid var(--sse-border);
+    border-radius: 2px; white-space: nowrap;
+  }
+  .sse-btn:hover:not(:disabled) { color: var(--sse-link); border-color: var(--sse-link); }
+  .sse-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  .sse-body { position: relative; flex: 1; min-height: 0; }
+  .sse-pre {
+    height: 100%; margin: 0; box-sizing: border-box;
+    padding: 6px 8px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+    font-family: var(--sse-mono); font-size: 12px; line-height: 1.6;
+  }
+  .sse-omitted { color: var(--sse-thin); user-select: none; }
+  .sse-empty {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 6px; color: var(--sse-thin); font-size: 13px; text-align: center;
+  }
+  .sse-empty em { font-style: normal; font-size: 12px; opacity: .8; }
+  .hide { display: none !important; }
+  .sse-toast {
+    position: absolute; right: 10px; bottom: 10px; z-index: 30;
+    padding: 5px 10px; border-radius: 2px; font-size: 12px;
+    color: #fff; background: rgba(0, 0, 0, .78); opacity: 0; transition: opacity .18s;
+    pointer-events: none;
+  }
+  .sse-toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="sse-app">
+  <div class="sse-bar">
+    <span class="sse-meta" id="meta">—</span>
+    <span class="spacer"></span>
+    <button class="sse-btn" id="btn-view-all" disabled>View All</button>
+    <button class="sse-btn" id="btn-copy-all" disabled>Copy All</button>
+  </div>
+  <div class="sse-body">
+    <pre class="sse-pre hide" id="preview"></pre>
+    <div class="sse-empty" id="empty">等待数据…</div>
+  </div>
+  <div class="sse-toast" id="toast"></div>
+</div>
+
+<script src="./sse-view.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var PUSH_API = '__pushWhistle5b6af7b9884e1165SessionActive__';
+  var POLL_INTERVAL = 800;
+  var DEFAULT_PREVIEW_LIMIT = 3000;
+
+  var dom = {
+    meta: document.getElementById('meta'),
+    preview: document.getElementById('preview'),
+    empty: document.getElementById('empty'),
+    viewAll: document.getElementById('btn-view-all'),
+    copyAll: document.getElementById('btn-copy-all'),
+    toast: document.getElementById('toast')
+  };
+
+  var state = {
+    visible: true,
+    session: null,
+    fullText: '',
+    previewLimit: DEFAULT_PREVIEW_LIMIT,
+    previewMode: 'tail',
+    trailingSeparator: false,
+    lastRenderKey: '',
+    pollTimer: null
+  };
+
+  var bridge = {
+    options: null,
+    getActiveSession: null,
+    copyText: null,
+    msgBox: {},
+    config: null
+  };
+
+  /* ---------------- 通用工具 ---------------- */
+
+  var toastTimer;
+  function toast(message) {
+    dom.toast.textContent = message;
+    dom.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      dom.toast.classList.remove('show');
+    }, 1600);
+  }
+
+  function notify(message) {
+    var msgBox = bridge.msgBox || {};
+    var fn = msgBox.success || msgBox.info || msgBox.show;
+    if (typeof fn === 'function') {
+      try {
+        fn(message);
+        return;
+      } catch (e) {
+        /* 忽略，走内嵌提示 */
+      }
+    }
+    toast(message);
+  }
+
+  function notifyError(message) {
+    var msgBox = bridge.msgBox || {};
+    if (typeof msgBox.error === 'function') {
+      try {
+        msgBox.error(message);
+        return;
+      } catch (e) {
+        /* 忽略，走内嵌提示 */
+      }
+    }
+    toast(message);
+  }
+
+  function fallbackCopy(text) {
+    var textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    var ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch (e) {
+      ok = false;
+    }
+    document.body.removeChild(textarea);
+    if (ok) {
+      notify('已复制全部内容（' + text.length + ' 字符）');
+    } else {
+      notifyError('复制失败，请手动选择内容复制');
+    }
+  }
+
+  function copyAll(text) {
+    if (!text) {
+      return;
+    }
+    // 1) 优先使用 whistle 宿主的剪贴板能力
+    if (bridge.copyText) {
+      try {
+        bridge.copyText(text, true);
+        notify('已复制全部内容（' + text.length + ' 字符）');
+        return;
+      } catch (e) {
+        /* 继续尝试 */
+      }
+    }
+    // 2) 浏览器原生 API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        notify('已复制全部内容（' + text.length + ' 字符）');
+      }, function () {
+        fallbackCopy(text);
+      });
+      return;
+    }
+    // 3) 兜底
+    fallbackCopy(text);
+  }
+
+  /* ---------------- 主界面渲染 ---------------- */
+
+  function getSession() {
+    if (state.session) {
+      return state.session;
+    }
+    if (bridge.getActiveSession) {
+      try {
+        return bridge.getActiveSession();
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  function renderEmpty(message, tip) {
+    dom.preview.classList.add('hide');
+    dom.empty.classList.remove('hide');
+    dom.empty.innerHTML = '';
+    var p = document.createElement('div');
+    p.textContent = message;
+    dom.empty.appendChild(p);
+    if (tip) {
+      var em = document.createElement('em');
+      em.textContent = tip;
+      dom.empty.appendChild(em);
+    }
+    dom.meta.textContent = '—';
+    dom.viewAll.disabled = true;
+    dom.copyAll.disabled = true;
+  }
+
+  function render() {
+    var session = getSession();
+    var SseView = window.SseView;
+
+    if (!session || !SseView) {
+      renderEmpty('等待数据…');
+      return;
+    }
+    if (!SseView.isSseSession(session)) {
+      renderEmpty('当前请求不是 SSE 请求', '该 Tab 仅用于查看 text/event-stream 响应');
+      return;
+    }
+
+    var fullText = SseView.buildFullText(session, { trailingSeparator: state.trailingSeparator });
+    state.fullText = fullText;
+
+    var info = SseView.summarize(session, fullText);
+    var parts = ['<b>SSE</b>'];
+    parts.push(info.frameCount + ' 条消息');
+    parts.push(info.charCount + ' 字符');
+    if (info.streaming) {
+      parts.push('流式接收中…');
+    } else if (session.endTime) {
+      parts.push('已结束');
+    }
+    if (info.statusCode) {
+      parts.push(String(info.statusCode));
+    }
+    dom.meta.innerHTML = parts.join(' · ');
+
+    var hasContent = fullText.length > 0;
+    dom.viewAll.disabled = !hasContent;
+    dom.copyAll.disabled = !hasContent;
+
+    if (!hasContent) {
+      renderEmpty(
+        info.streaming ? '等待 SSE 数据…' : '该响应没有捕获到 SSE 内容',
+        '可尝试：等待流结束，或调大帧缓存（w2 restart -F 20000）'
+      );
+      dom.meta.innerHTML = parts.join(' · ');
+      return;
+    }
+
+    var preview = SseView.buildPreview(fullText, state.previewLimit, state.previewMode);
+    var renderKey = [fullText.length, preview.text.length, preview.truncated].join(':');
+    if (renderKey !== state.lastRenderKey) {
+      state.lastRenderKey = renderKey;
+      dom.empty.classList.add('hide');
+      dom.preview.classList.remove('hide');
+      dom.preview.textContent = '';
+      if (preview.truncated) {
+        var span = document.createElement('div');
+        span.className = 'sse-omitted';
+        span.textContent =
+          '……（已省略前 ' + preview.omitted + ' 个字符，共 ' + fullText.length + ' 字符，点击 View All 查看全部）';
+        dom.preview.appendChild(span);
+      }
+      dom.preview.appendChild(document.createTextNode(preview.text));
+      if (preview.mode === 'tail') {
+        dom.preview.scrollTop = dom.preview.scrollHeight;
+      }
+    }
+    overlay.sync(fullText);
+  }
+
+  /* ---------------- View All：近全屏弹窗 ---------------- */
+
+  var OVERLAY_CSS = [
+    '.sse-ovl{position:fixed;top:0;right:0;bottom:0;left:0;z-index:100000;display:flex;align-items:center;justify-content:center;}',
+    '.sse-ovl-mask{position:absolute;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.45);}',
+    '.sse-ovl-box{position:relative;display:flex;flex-direction:column;width:97vw;height:95vh;' +
+      'background:var(--b-default,#fff);color:var(--c-default,#333);border:1px solid var(--c-border,#dfe1e6);' +
+      'border-radius:4px;box-shadow:0 10px 40px rgba(0,0,0,.35);' +
+      'font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;}',
+    '.sse-ovl-head{display:flex;align-items:center;gap:8px;flex:none;height:32px;padding:0 10px;' +
+      'background:var(--b-bar,#f7f8fa);border-bottom:1px solid var(--c-border,#dfe1e6);}',
+    '.sse-ovl-title{flex:1;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+    '.sse-ovl-meta{flex:none;font-size:12px;color:var(--c-thin,#888);}',
+    '.sse-ovl-btn{flex:none;height:20px;padding:0 10px;font-size:12px;line-height:18px;cursor:pointer;' +
+      'color:var(--c-default,#333);background:transparent;border:1px solid var(--c-border,#dfe1e6);border-radius:2px;white-space:nowrap;}',
+    '.sse-ovl-btn:hover{color:var(--c-link,#1a73e8);border-color:var(--c-link,#1a73e8);}',
+    '.sse-ovl-body{flex:1;min-height:0;width:100%;box-sizing:border-box;padding:8px;margin:0;border:none;outline:none;resize:none;' +
+      'font-family:Menlo,Consolas,"Courier New",monospace;font-size:12px;line-height:1.6;white-space:pre;overflow:auto;' +
+      'background:var(--b-default,#fff);color:var(--c-default,#333);}'
+  ].join('');
+
+  var overlay = (function () {
+    var ctx = null; // { doc, style, root, body, meta, onKey }
+
+    function pickDocument() {
+      // Tab 页面与 whistle UI 同源，优先挂到宿主文档 -> 覆盖整个 whistle 窗口
+      try {
+        var parentWin = window.parent;
+        if (parentWin && parentWin !== window && parentWin.document && parentWin.document.body) {
+          return parentWin.document;
+        }
+      } catch (e) {
+        /* 跨域时退回自身文档 */
+      }
+      return document;
+    }
+
+    function build() {
+      var doc = pickDocument();
+      var style = doc.createElement('style');
+      style.textContent = OVERLAY_CSS;
+      (doc.head || doc.documentElement).appendChild(style);
+
+      var root = doc.createElement('div');
+      root.className = 'sse-ovl';
+
+      var mask = doc.createElement('div');
+      mask.className = 'sse-ovl-mask';
+
+      var box = doc.createElement('div');
+      box.className = 'sse-ovl-box';
+
+      var head = doc.createElement('div');
+      head.className = 'sse-ovl-head';
+
+      var title = doc.createElement('div');
+      title.className = 'sse-ovl-title';
+      title.textContent = 'SSE 完整内容';
+
+      var meta = doc.createElement('div');
+      meta.className = 'sse-ovl-meta';
+
+      var copyBtn = doc.createElement('button');
+      copyBtn.className = 'sse-ovl-btn';
+      copyBtn.textContent = 'Copy All';
+
+      var closeBtn = doc.createElement('button');
+      closeBtn.className = 'sse-ovl-btn';
+      closeBtn.textContent = '关闭';
+
+      var body = doc.createElement('textarea');
+      body.className = 'sse-ovl-body';
+      body.readOnly = true;
+      body.spellcheck = false;
+
+      head.appendChild(title);
+      head.appendChild(meta);
+      head.appendChild(copyBtn);
+      head.appendChild(closeBtn);
+      box.appendChild(head);
+      box.appendChild(body);
+      root.appendChild(mask);
+      root.appendChild(box);
+      doc.body.appendChild(root);
+
+      var onKey = function (e) {
+        if (e.keyCode === 27) {
+          close();
+        }
+      };
+      doc.addEventListener('keydown', onKey);
+      mask.addEventListener('click', close);
+      closeBtn.addEventListener('click', close);
+      copyBtn.addEventListener('click', function () {
+        copyAll(ctx && ctx.body.value);
+      });
+
+      ctx = { doc: doc, style: style, root: root, body: body, meta: meta, title: title, onKey: onKey };
+      return ctx;
+    }
+
+    function isOpen() {
+      return !!ctx;
+    }
+
+    function destroy() {
+      if (!ctx) {
+        return;
+      }
+      try {
+        ctx.doc.removeEventListener('keydown', ctx.onKey);
+      } catch (e) {
+        /* 忽略 */
+      }
+      if (ctx.root.parentNode) {
+        ctx.root.parentNode.removeChild(ctx.root);
+      }
+      if (ctx.style.parentNode) {
+        ctx.style.parentNode.removeChild(ctx.style);
+      }
+      ctx = null;
+    }
+
+    function open() {
+      if (!state.fullText) {
+        return;
+      }
+      if (ctx) {
+        sync(state.fullText);
+        return;
+      }
+      build();
+      sync(state.fullText);
+      ctx.body.focus();
+    }
+
+    function close() {
+      destroy();
+    }
+
+    // 打开状态下同步内容（会话切换 / 流式追加时实时更新）
+    function sync(text) {
+      if (!ctx) {
+        return;
+      }
+      var SseView = window.SseView;
+      var session = getSession();
+      var info = SseView && session ? SseView.summarize(session, text) : null;
+      var changed = ctx.body.value !== text;
+      if (changed) {
+        var atBottom = ctx.body.scrollTop + ctx.body.clientHeight >= ctx.body.scrollHeight - 20;
+        ctx.body.value = text;
+        if (atBottom) {
+          ctx.body.scrollTop = ctx.body.scrollHeight;
+        }
+      }
+      ctx.meta.textContent =
+        text.length + ' 字符' + (info && info.streaming ? ' · 流式接收中…' : '') + (info ? ' · ' + info.frameCount + ' 条消息' : '');
+      if (session && session.url) {
+        ctx.title.textContent = 'SSE 完整内容 — ' + session.url;
+      }
+    }
+
+    return { open: open, close: close, sync: sync, isOpen: isOpen };
+  })();
+
+  /* ---------------- 事件绑定 ---------------- */
+
+  dom.viewAll.addEventListener('click', function () {
+    overlay.open();
+  });
+  dom.copyAll.addEventListener('click', function () {
+    copyAll(state.fullText);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.keyCode === 27 && overlay.isOpen()) {
+      overlay.close();
+    }
+  });
+  // Tab 被销毁时清理宿主文档里的弹窗，避免残留
+  window.addEventListener('beforeunload', function () {
+    overlay.close();
+  });
+
+  /* ---------------- 与 whistle UI 通信 ---------------- */
+
+  // 宿主会通过该函数推送当前选中的抓包数据（hide 表示当前 Tab 不可见）
+  window[PUSH_API] = function (item, hide) {
+    if (hide) {
+      state.visible = false;
+      state.session = null;
+      state.lastRenderKey = '';
+      overlay.close();
+      return;
+    }
+    state.visible = true;
+    if (item) {
+      state.session = item;
+    }
+    render();
+  };
+
+  function startPolling() {
+    if (state.pollTimer) {
+      return;
+    }
+    state.pollTimer = setInterval(function () {
+      if (!state.visible) {
+        return;
+      }
+      var session = getSession();
+      if (session) {
+        state.session = session;
+      }
+      render();
+    }, POLL_INTERVAL);
+  }
+
+  function applyConfig(config) {
+    if (!config || typeof config !== 'object') {
+      return;
+    }
+    var limit = parseInt(config.previewLimit, 10);
+    if (limit > 0) {
+      state.previewLimit = limit;
+    }
+    if (config.previewMode === 'head' || config.previewMode === 'tail') {
+      state.previewMode = config.previewMode;
+    }
+    state.trailingSeparator = !!config.trailingSeparator;
+  }
+
+  function connect(retry) {
+    var parentWin = window.parent;
+    var ready = parentWin && typeof parentWin.onWhistleInspectorCustomTabReady === 'function';
+    if (!ready) {
+      // 宿主可能还没把 API 挂上，稍后重试（最多 60 次）
+      if ((retry || 0) < 60) {
+        setTimeout(function () {
+          connect((retry || 0) + 1);
+        }, 50);
+      }
+      return;
+    }
+    try {
+      parentWin.onWhistleInspectorCustomTabReady(function (options) {
+        options = options || {};
+        bridge.options = options;
+        bridge.getActiveSession = options.getActiveSession;
+        bridge.copyText = options.copyText;
+        bridge.msgBox = options.msgBox || {};
+        bridge.config = options.config;
+        applyConfig(document.whistleInspectorConfig || options.config);
+        state.session = null;
+        render();
+        startPolling();
+      }, window);
+    } catch (e) {
+      /* 忽略：保持空态 */
+    }
+  }
+
+  render();
+  connect(0);
+})();
+</script>
+</body>
+</html>
