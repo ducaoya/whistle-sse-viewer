@@ -5,15 +5,28 @@
 <title>whistle.sse-viewer 配置</title>
 <style>
   :root {
+    /* 以下变量由 theme.js 从 whistle 宿主同步注入（方案 A）；fallback 与 whistle 浅色主题一致 */
     --sse-bg: var(--b-default, #fff);
-    --sse-fg: var(--c-default, #333);
-    --sse-thin: var(--c-thin, #888);
-    --sse-border: var(--c-border, #dfe1e6);
-    --sse-bar: var(--b-bar, #f7f8fa);
-    --sse-link: var(--c-link, #1a73e8);
+    --sse-fg: var(--c-default, #000);
+    --sse-thin: var(--c-thin, #555);
+    --sse-heavy: var(--c-heavy, #333);
+    --sse-border: var(--c-border, #ccc);
+    --sse-line: var(--v-border, 1px solid #ccc);
+    --sse-bar: var(--b-bar, #fafafa);
+    --sse-title: var(--b-title, #f1f3f4);
+    --sse-hover: var(--b-hover, #f5f5f5);
+    --sse-btn-hover: var(--b-btn-hover, #e6e6e6);
+    --sse-primary: var(--b-primary, #337ab7);
+    --sse-primary-fg: var(--c-btn, #fff);
+    --sse-link: var(--c-link, #337ab7);
+    --sse-ok: var(--c-ok, #5bbd72);
+    --sse-err: var(--c-error, red);
+    --sse-warn: var(--c-warn, #5c3b00);
+    --sse-field-h: var(--h-field, 2pc);
     --sse-mono: Menlo, Consolas, "Courier New", monospace;
   }
   html, body { height: 100%; margin: 0; }
+  html { background: var(--sse-bg); } /* 覆盖 whistle 注入的 html{background:#fff} */
   body {
     font: 13px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
     background: var(--sse-bg);
@@ -24,8 +37,8 @@
   h1 { font-size: 15px; margin: 0 0 4px; }
   .sub { color: var(--sse-thin); font-size: 12px; margin-bottom: 14px; }
 
-  .row { padding: 12px 0; border-top: 1px solid var(--sse-border); }
-  .row:last-of-type { border-bottom: 1px solid var(--sse-border); }
+  .row { padding: 12px 0; border-top: var(--sse-line); }
+  .row:last-of-type { border-bottom: var(--sse-line); }
   .label { display: flex; align-items: center; gap: 8px; font-weight: 600; }
   .label code {
     font-family: var(--sse-mono); font-size: 12px; font-weight: 400;
@@ -33,47 +46,50 @@
   }
   .default-tag {
     font-size: 11px; font-weight: 400; color: var(--sse-thin);
-    border: 1px solid var(--sse-border); border-radius: 2px; padding: 0 5px; white-space: nowrap;
+    border: var(--sse-line); border-radius: 2px; padding: 0 5px; white-space: nowrap;
   }
   .desc { color: var(--sse-thin); font-size: 12px; margin: 4px 0 8px; }
   .control { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   input[type="number"], select {
-    font: inherit; color: var(--sse-fg); background: var(--sse-bg);
-    border: 1px solid var(--sse-border); border-radius: 2px; padding: 3px 6px; min-width: 120px;
+    font: inherit; height: var(--sse-field-h); box-sizing: border-box; padding: 0 6px;
+    color: var(--sse-fg); background: var(--sse-bg);
+    border: var(--sse-line); border-radius: 2px; min-width: 120px;
   }
   input[type="number"] { width: 120px; }
   select { min-width: 220px; }
+  input[type="number"]:focus, select:focus { outline: none; border-color: var(--sse-link); }
   .unit { color: var(--sse-thin); font-size: 12px; }
   .hint { font-size: 12px; color: var(--sse-thin); }
-  .hint.warn { color: #d97706; }
+  .hint.warn { color: var(--sse-warn); }
 
   .actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
   button {
-    font: inherit; height: 28px; padding: 0 14px; cursor: pointer;
-    color: var(--sse-fg); background: var(--sse-bg);
-    border: 1px solid var(--sse-border); border-radius: 2px;
+    font: inherit; height: var(--sse-field-h); padding: 0 12px; cursor: pointer; box-sizing: border-box;
+    color: var(--sse-fg); background: var(--sse-bg); border: var(--sse-line); border-radius: 2px;
   }
-  button.primary { color: #fff; background: var(--sse-link); border-color: var(--sse-link); }
-  button:hover:not(:disabled) { opacity: .88; }
+  button:hover:not(:disabled) { background: var(--sse-btn-hover); }
+  button.primary { color: var(--sse-primary-fg); background: var(--sse-primary); border-color: var(--sse-primary); }
+  button.primary:hover:not(:disabled) { opacity: .9; background: var(--sse-primary); }
   .status { font-size: 12px; }
-  .status.ok { color: #16a34a; }
-  .status.err { color: #dc2626; }
+  .status.ok { color: var(--sse-ok); }
+  .status.err { color: var(--sse-err); }
   .status.info { color: var(--sse-thin); }
 
   .toast {
     position: fixed; top: 14px; right: 18px; z-index: 9999;
-    max-width: 82%; padding: 8px 14px; border-radius: 3px;
-    font-size: 12px; line-height: 1.5; color: #fff;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, .22);
+    max-width: 82%; padding: 8px 14px; border-radius: 3px; box-sizing: border-box;
+    font-size: 12px; line-height: 1.5; color: var(--sse-fg);
+    border: var(--sse-line); background: var(--sse-bar);
+    box-shadow: 0 4px 14px var(--b-modal, rgba(0, 0, 0, .22));
     opacity: 0; transform: translateY(-6px); transition: opacity .18s, transform .18s;
     pointer-events: none; white-space: pre-wrap;
   }
   .toast.show { opacity: 1; transform: translateY(0); }
-  .toast.ok { background: #16a34a; }
-  .toast.err { background: #dc2626; }
+  .toast.ok { background: var(--b-success, #dff0d8); border-color: var(--sse-ok); }
+  .toast.err { background: var(--b-error, #f2dede); border-color: var(--sse-err); }
 
   .current {
-    margin-top: 18px; padding: 10px 12px; border: 1px solid var(--sse-border);
+    margin-top: 18px; padding: 10px 12px; border: var(--sse-line);
     border-radius: 3px; background: var(--sse-bar); font-size: 12px;
   }
   .current pre { margin: 6px 0 0; font-family: var(--sse-mono); font-size: 12px; white-space: pre-wrap; }
@@ -163,17 +179,23 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script src="./public/theme.js"></script>
 <script src="./public/sse-view.js"></script>
 <script>
 (function () {
   'use strict';
 
   var SseView = window.SseView;
+  // 跟随 whistle 宿主主题（方案 A：读取父窗口 CSS 变量注入本页）
+  if (window.SseTheme) {
+    window.SseTheme.watch(window);
+  }
   // 依赖脚本加载失败时明确报错，避免“输入框空白”这种无提示的故障
   if (!SseView) {
     document.body.insertAdjacentHTML(
       'afterbegin',
-      '<div style="margin:12px;padding:10px 12px;border:1px solid #dc2626;border-radius:3px;color:#dc2626;font-size:12px;">' +
+      '<div style="margin:12px;padding:10px 12px;border:var(--v-border,1px solid #ccc);' +
+        'border-radius:3px;background:var(--b-error,#f2dede);color:var(--c-error,red);font-size:12px;">' +
         '加载 sse-view.js 失败：请刷新页面（Ctrl+F5）后重试；若仍失败请重新安装插件。' +
         '</div>'
     );

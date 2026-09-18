@@ -5,15 +5,19 @@
 <title>SSE</title>
 <style>
   :root {
+    /* 这些变量由 theme.js 从 whistle 宿主同步注入（方案 A）；fallback 与 whistle 浅色主题一致 */
     --sse-bg: var(--b-default, #fff);
-    --sse-fg: var(--c-default, #333);
-    --sse-thin: var(--c-thin, #888);
-    --sse-border: var(--c-border, #dfe1e6);
-    --sse-bar: var(--b-bar, #f7f8fa);
-    --sse-link: var(--c-link, #1a73e8);
+    --sse-fg: var(--c-default, #000);
+    --sse-thin: var(--c-thin, #555);
+    --sse-border: var(--c-border, #ccc);
+    --sse-line: var(--v-border, 1px solid #ccc);
+    --sse-bar: var(--b-bar, #fafafa);
+    --sse-btn-hover: var(--b-btn-hover, #e6e6e6);
+    --sse-link: var(--c-link, #337ab7);
     --sse-mono: Menlo, Consolas, "Courier New", monospace;
   }
   html, body { height: 100%; margin: 0; }
+  html { background: var(--sse-bg); } /* 覆盖 whistle 注入的 html{background:#fff} */
   body {
     font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
     background: var(--sse-bg);
@@ -25,18 +29,18 @@
   .sse-bar {
     display: flex; align-items: center; gap: 8px;
     height: 26px; padding: 0 8px; flex: none;
-    background: var(--sse-bar); border-bottom: 1px solid var(--sse-border);
+    background: var(--sse-bar); border-bottom: var(--sse-line);
     font-size: 12px;
   }
   .sse-meta { color: var(--sse-thin); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sse-meta b { color: var(--sse-fg); font-weight: 600; }
   .sse-bar .spacer { flex: 1; }
   .sse-btn {
-    height: 20px; padding: 0 8px; font-size: 12px; line-height: 18px; cursor: pointer;
-    color: var(--sse-fg); background: transparent; border: 1px solid var(--sse-border);
+    height: 20px; padding: 0 8px; font-size: 12px; line-height: 18px; cursor: pointer; box-sizing: border-box;
+    color: var(--sse-fg); background: transparent; border: var(--sse-line);
     border-radius: 2px; white-space: nowrap;
   }
-  .sse-btn:hover:not(:disabled) { color: var(--sse-link); border-color: var(--sse-link); }
+  .sse-btn:hover:not(:disabled) { color: var(--sse-link); border-color: var(--sse-link); background: var(--sse-btn-hover); }
   .sse-btn:disabled { opacity: .45; cursor: not-allowed; }
 
   .sse-body { position: relative; flex: 1; min-height: 0; }
@@ -76,10 +80,16 @@
   <div class="sse-toast" id="toast"></div>
 </div>
 
+<script src="./theme.js"></script>
 <script src="./sse-view.js"></script>
 <script>
 (function () {
   'use strict';
+
+  // 跟随 whistle 宿主主题（方案 A：读取父窗口 CSS 变量注入本页）
+  if (window.SseTheme) {
+    window.SseTheme.watch(window);
+  }
 
   var PUSH_API = '__pushWhistle5b6af7b9884e1165SessionActive__';
   var POLL_INTERVAL = 800;
@@ -325,22 +335,22 @@
 
   var OVERLAY_CSS = [
     '.sse-ovl{position:fixed;top:0;right:0;bottom:0;left:0;z-index:100000;display:flex;align-items:center;justify-content:center;}',
-    '.sse-ovl-mask{position:absolute;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.45);}',
+    '.sse-ovl-mask{position:absolute;top:0;right:0;bottom:0;left:0;background:var(--b-modal,rgba(0,0,0,.45));}',
     '.sse-ovl-box{position:relative;display:flex;flex-direction:column;width:97vw;height:95vh;' +
-      'background:var(--b-default,#fff);color:var(--c-default,#333);border:1px solid var(--c-border,#dfe1e6);' +
-      'border-radius:4px;box-shadow:0 10px 40px rgba(0,0,0,.35);' +
+      'background:var(--b-default,#fff);color:var(--c-default,#000);border:var(--v-border,1px solid #ccc);' +
+      'border-radius:4px;box-shadow:0 10px 40px var(--b-modal,rgba(0,0,0,.35));' +
       'font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;}',
     '.sse-ovl-head{display:flex;align-items:center;gap:8px;flex:none;height:32px;padding:0 10px;' +
-      'background:var(--b-bar,#f7f8fa);border-bottom:1px solid var(--c-border,#dfe1e6);}',
+      'background:var(--b-bar,#fafafa);border-bottom:var(--v-border,1px solid #ccc);}',
     '.sse-ovl-title{flex:1;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
-    '.sse-ovl-meta{flex:none;font-size:12px;color:var(--c-thin,#888);}',
-    '.sse-ovl-btn{flex:none;height:20px;padding:0 10px;font-size:12px;line-height:18px;cursor:pointer;' +
-      'color:var(--c-default,#333);background:transparent;border:1px solid var(--c-border,#dfe1e6);border-radius:2px;white-space:nowrap;}',
-    '.sse-ovl-btn:hover{color:var(--c-link,#1a73e8);border-color:var(--c-link,#1a73e8);}',
+    '.sse-ovl-meta{flex:none;font-size:12px;color:var(--c-thin,#555);}',
+    '.sse-ovl-btn{flex:none;height:var(--h-field,2pc);padding:0 10px;font-size:12px;cursor:pointer;box-sizing:border-box;' +
+      'color:var(--c-default,#000);background:var(--b-default,#fff);border:var(--v-border,1px solid #ccc);border-radius:2px;white-space:nowrap;}',
+    '.sse-ovl-btn:hover{color:var(--c-link,#337ab7);border-color:var(--c-link,#337ab7);background:var(--b-btn-hover,#e6e6e6);}',
     '.sse-ovl-body{flex:1;min-height:0;width:100%;box-sizing:border-box;padding:8px;margin:0;border:none;outline:none;resize:none;' +
       'font-family:Menlo,Consolas,"Courier New",monospace;font-size:12px;line-height:1.6;' +
       'white-space:pre-wrap;word-break:break-all;overflow-wrap:anywhere;overflow:auto;' +
-      'background:var(--b-default,#fff);color:var(--c-default,#333);}'
+      'background:var(--b-default,#fff);color:var(--c-default,#000);}'
   ].join('');
 
   var overlay = (function () {

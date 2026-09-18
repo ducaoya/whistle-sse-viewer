@@ -18,6 +18,17 @@ const path = require('path');
 const vm = require('vm');
 
 const SseView = require(path.join(__dirname, '..', 'public', 'sse-view.js'));
+const SseTheme = require(path.join(__dirname, '..', 'public', 'theme.js'));
+
+// 测试里不启动真实轮询（watch 的定时逻辑由 test/theme.test.js 覆盖），只做一次同步
+const SseThemeForPage = {
+  sync: SseTheme.sync,
+  watch: function (win) {
+    return SseTheme.sync(win);
+  },
+  VAR_LIST: SseTheme.VAR_LIST,
+  FALLBACK: SseTheme.FALLBACK
+};
 const HTML = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
 
 const ELEMENT_IDS = [
@@ -126,26 +137,49 @@ function runPage(options) {
   });
   const storage = opts.storage === null ? null : opts.storage || createStorage();
   const bodyHtml = [];
+  const themeProps = {};
+  const themeAttrs = {};
+  const documentStub = {
+    getElementById: (id) => elements[id] || null,
+    body: {
+      insertAdjacentHTML: (position, html) => bodyHtml.push(html)
+    },
+    documentElement: {
+      style: {
+        setProperty: (name, value) => {
+          themeProps[name] = value;
+        },
+        backgroundColor: ''
+      },
+      getAttribute: (name) => (name in themeAttrs ? themeAttrs[name] : null),
+      setAttribute: (name, value) => {
+        themeAttrs[name] = value;
+      }
+    }
+  };
   const sandbox = {
     window: {
       localStorage: storage,
-      SseView: opts.sseView === undefined ? SseView : opts.sseView
+      SseView: opts.sseView === undefined ? SseView : opts.sseView,
+      SseTheme: opts.sseTheme === undefined ? SseThemeForPage : opts.sseTheme,
+      document: documentStub,
+      matchMedia: () => ({ matches: false }),
+      addEventListener: () => {},
+      getComputedStyle: () => ({ getPropertyValue: () => '' })
     },
-    document: {
-      getElementById: (id) => elements[id] || null,
-      body: {
-        insertAdjacentHTML: (position, html) => bodyHtml.push(html)
-      }
-    },
+    document: documentStub,
     fetch: opts.fetch || (() => Promise.resolve(FETCH_OK)),
-    // 不真正排定定时器，避免测试等待 toast 自动消失
+    // 不真正排定定时器，避免测试等待 toast 自动消失 / 主题轮询
     setTimeout: () => 0,
+    setInterval: () => 0,
     clearTimeout: () => {},
+    clearInterval: () => {},
     console
   };
   sandbox.globalThis = sandbox;
+  sandbox.window.parent = sandbox.window; // 无宿主：走兜底调色板
   vm.runInNewContext(INLINE_SCRIPT, sandbox, { filename: 'index.html' });
-  return { elements, storage, bodyHtml };
+  return { elements, storage, bodyHtml, themeProps, themeAttrs };
 }
 
 function tick() {
@@ -248,6 +282,13 @@ check('恢复默认：清除配置并提示成功', () => {
   assert.strictEqual(elements.previewLimit.value, '3000');
   assert.ok(elements.toast.textContent.indexOf('已恢复默认值') !== -1, 'toast: ' + elements.toast.textContent);
   assert.ok(elements.toast.className.indexOf('ok') !== -1);
+});
+
+check('页面会同步主题变量（兜底调色板）', () => {
+  const { themeProps, themeAttrs } = runPage();
+  assert.strictEqual(themeAttrs['data-theme'], 'light');
+  assert.strictEqual(themeProps['--b-default'], '#fff');
+  assert.ok(themeProps['--v-border'], '应注入边框变量');
 });
 
 check('sse-view.js 未加载时给出可见报错，而不是静默空白', () => {
