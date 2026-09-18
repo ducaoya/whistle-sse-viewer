@@ -1,6 +1,6 @@
 {
   "name": "whistle.sse-viewer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Whistle 插件：在 Response 面板新增 SSE Tab，实时查看并一键复制完整 SSE 流内容",
   "main": "index.js",
   "scripts": {

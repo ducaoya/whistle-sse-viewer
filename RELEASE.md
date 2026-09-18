@@ -61,9 +61,35 @@ git commit -am "chore: release 1.0.1【release】"
 git push origin master
 ```
 
-工作流执行顺序：`npm test` → 读取 `name@version` → 检查该版本是否已在 npm（已存在则提示并跳过，不会失败）→ `npm publish`。
+工作流执行顺序：`npm test` → 读取 `name@version` → 检查该版本是否已在 npm（已存在则提示并跳过）→ `npm publish`。
 
-**前置配置**：仓库 `Settings → Secrets and variables → Actions` 添加 `NPM_TOKEN`（npm Automation token，需 publish 权限）。
+### 发布方式：npm Trusted Publishing（OIDC，无需 token）
+
+npm 已永久吐销全部 classic token（2025-12-09），且带直接发布能力的 granular token 也在退场，因此本仓改用 **OIDC 可信发布**：工作流用 GitHub 签发的短期凭据发布，**不需要任何 secret**。
+
+前置（每个包在 npm 网页上配一次）：`https://www.npmjs.com/package/<包名>/access` → **Trusted Publisher** → GitHub Actions
+
+| 字段 | 值 |
+| --- | --- |
+| Organization or user | `ducaoya` |
+| Repository | `whistle-sse-viewer` |
+| Workflow filename | `publish.yml`（只填文件名，大小写敏感） |
+| Environment name | 留空 |
+
+工作流侧需满足：
+
+- `permissions.id-token: write`（否则 OIDC 不可用）
+- npm ≥ 11.5.1（Node 22 自带 10.x，工作流里用 `npm install -g npm@latest` 提升）
+- `package.json` 的 `repository.url` 必须与 GitHub 仓库一致
+- 必须使用 GitHub 托管 runner（不支持自建）
+
+> 首版例外：Trusted Publisher 只能给**已存在的包**配置，所以首个版本需要先手动发布一次：
+> ```bash
+> npm login   # 2FA 交互登录（会话 2 小时有效）
+> npm publish # 提示 OTP 时输入验证码
+> ```
+
+> 可选替代：带人工审批的暂存发布（token 选 **Read and write (stage only)** + `npm stage publish`），但每次发版都需 2FA 审批，多包场景不推荐；且官方明确暂存发布**不支持全新包**。
 
 ### 关键细节：标记必须在 HEAD 上
 
@@ -76,7 +102,7 @@ git push origin master
 # 1. 先提交普通改动
 git add docs/images && git commit -m "docs: 补充界面截图"
 # 2. 再用空提交把【release】标记放到 HEAD
-git commit --allow-empty -m "chore: release 1.0.0【release】"
+git commit --allow-empty -m "chore: release 1.0.1【release】"
 # 3. 一起推送（HEAD 带标记 -> 触发发布）
 git push origin master
 ```
@@ -86,7 +112,6 @@ git push origin master
 ```bash
 npm test                                            # 单测
 npm pack --dry-run                                  # 查看将要发布的内容
-npm publish --dry-run                               # 演练发布，不会真的上传
 node -p "require('./package.json').name+'@'+require('./package.json').version"
 npm view <name>@<version> version                   # 有输出=该版本已存在，需先上调 version
 ```

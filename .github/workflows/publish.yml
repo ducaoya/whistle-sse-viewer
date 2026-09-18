@@ -3,6 +3,12 @@ name: Publish to npm
 # 触发条件（两个条件同时满足才会发布）：
 #   1. 推送到 master 分支
 #   2. 提交信息中包含【release】标识
+#
+# 发布方式：npm Trusted Publishing (OIDC) —— 不需要任何 token / secret。
+# 前置：在 npm 包设置里配置 Trusted Publisher：
+#   Organization or user = ducaoya
+#   Repository           = whistle-sse-viewer
+#   Workflow filename    = publish.yml
 on:
   push:
     branches:
@@ -10,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write # 允许 Actions 签发 OIDC token，供 npm 换取短期发布凭据
 
 concurrency:
   group: npm-publish
@@ -26,8 +33,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org
+
+      - name: Ensure npm supports OIDC trusted publishing
+        run: |
+          npm install -g npm@latest
+          echo "node: $(node -v) / npm: $(npm -v)"
+
+      - name: Verify OIDC is available
+        run: |
+          if [ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            echo "::error::缺少 id-token: write 权限，无法使用 trusted publishing"
+            exit 1
+          fi
+          echo "OIDC 可用"
 
       - name: Run tests
         run: npm test
@@ -51,8 +71,6 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish to npm
+      - name: Publish to npm (trusted publishing, no token)
         if: steps.check.outputs.exists == 'false'
         run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
