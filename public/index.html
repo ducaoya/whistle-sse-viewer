@@ -60,6 +60,18 @@
   .status.err { color: #dc2626; }
   .status.info { color: var(--sse-thin); }
 
+  .toast {
+    position: fixed; top: 14px; right: 18px; z-index: 9999;
+    max-width: 82%; padding: 8px 14px; border-radius: 3px;
+    font-size: 12px; line-height: 1.5; color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .22);
+    opacity: 0; transform: translateY(-6px); transition: opacity .18s, transform .18s;
+    pointer-events: none; white-space: pre-wrap;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.ok { background: #16a34a; }
+  .toast.err { background: #dc2626; }
+
   .current {
     margin-top: 18px; padding: 10px 12px; border: 1px solid var(--sse-border);
     border-radius: 3px; background: var(--sse-bar); font-size: 12px;
@@ -149,6 +161,8 @@
   </div>
 </div>
 
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
 <script src="./sse-view.js"></script>
 <script>
 (function () {
@@ -168,20 +182,59 @@
     status: document.getElementById('status'),
     current: document.getElementById('current'),
     source: document.getElementById('source'),
+    toast: document.getElementById('toast'),
     save: document.getElementById('save'),
     reset: document.getElementById('reset')
   };
 
   var defaults = SseView.DEFAULT_CONFIG;
+  var toastTimer;
 
   function setStatus(text, type) {
     dom.status.textContent = text || '';
     dom.status.className = 'status' + (type ? ' ' + type : '');
   }
 
-  function hasLocalConfig() {
+  // 成功 / 失败提示（右上角浮动提示，自动消失）
+  function showToast(message, type) {
+    var variant = type === 'err' ? 'err' : 'ok';
+    dom.toast.textContent = message;
+    dom.toast.className = 'toast show ' + variant;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      dom.toast.className = 'toast ' + variant;
+    }, type === 'err' ? 3200 : 2400);
+  }
+
+  // 取 localStorage（不可用时返回 null，而不是抛错）
+  function getStorage() {
     try {
-      return !!window.localStorage.getItem(SseView.CONFIG_KEY);
+      var storage = window.localStorage;
+      storage.setItem('whistle.sse-viewer.__probe__', '1');
+      storage.removeItem('whistle.sse-viewer.__probe__');
+      return storage;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  var SAVE_ERRORS = {
+    LOCAL_STORAGE_UNAVAILABLE: '保存失败：当前浏览器不可用 localStorage（可能禁用了存储或处于隐身模式）',
+    VERIFY_FAILED: '保存失败：写入后校验不一致，请重试',
+    QuotaExceededError: '保存失败：localStorage 空间不足'
+  };
+
+  function getSaveError(result) {
+    return SAVE_ERRORS[result.error] || '保存失败：' + (result.error || '未知错误');
+  }
+
+  function hasLocalConfig() {
+    var storage = getStorage();
+    if (!storage) {
+      return false;
+    }
+    try {
+      return !!storage.getItem(SseView.CONFIG_KEY);
     } catch (e) {
       return false;
     }
@@ -229,7 +282,7 @@
   }
 
   function renderCurrent() {
-    var config = SseView.readConfig(window.localStorage, defaults);
+    var config = SseView.readConfig(getStorage(), defaults);
     dom.current.textContent = JSON.stringify(config, null, 2);
     dom.source.textContent = hasLocalConfig() ? '（来源：本机 localStorage 配置）' : '（来源：默认值）';
   }
@@ -263,18 +316,47 @@
   dom.save.addEventListener('click', function () {
     var form = readForm();
     if (!form) {
-      setStatus('保存失败：预览字符数不合法', 'err');
+      var invalid = '保存失败：预览字符数不合法（请填 -1 或大于 0 的整数）';
+      setStatus(invalid, 'err');
+      showToast(invalid, 'err');
       return;
     }
-    var saved = SseView.writeConfig(window.localStorage, form, defaults);
-    fillForm(saved);
+    var result = SseView.saveConfig(getStorage(), form, defaults);
+    if (!result.ok) {
+      var fail = getSaveError(result);
+      setStatus(fail, 'err');
+      showToast(fail, 'err');
+      return;
+    }
+    fillForm(result.config);
     setStatus('已保存（SSE Tab 立即生效）', 'ok');
+    showToast('保存成功：配置已写入本机 localStorage，SSE Tab 立即生效', 'ok');
   });
 
   dom.reset.addEventListener('click', function () {
-    SseView.clearConfig(window.localStorage);
+    var storage = getStorage();
+    if (!storage) {
+      var unavailable = '恢复失败：当前浏览器不可用 localStorage';
+      setStatus(unavailable, 'err');
+      showToast(unavailable, 'err');
+      return;
+    }
+    SseView.clearConfig(storage);
+    var stillExists = false;
+    try {
+      stillExists = !!storage.getItem(SseView.CONFIG_KEY);
+    } catch (e) {
+      stillExists = true;
+    }
+    if (stillExists) {
+      var failed = '恢复默认失败：本机配置未能清除，请重试';
+      setStatus(failed, 'err');
+      showToast(failed, 'err');
+      return;
+    }
     fillForm(defaults);
     setStatus('已恢复默认值', 'info');
+    showToast('已恢复默认值：本机配置已清除', 'ok');
   });
 
   // 默认值来自 package.json 的 whistleConfig.inspectorConfig
@@ -292,7 +374,7 @@
     })
     .then(function () {
       renderDefaultTags();
-      fillForm(SseView.readConfig(window.localStorage, defaults));
+      fillForm(SseView.readConfig(getStorage(), defaults));
     });
 })();
 </script>

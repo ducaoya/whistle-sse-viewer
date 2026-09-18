@@ -299,6 +299,27 @@
   }
 
   /**
+   * 保存配置：写入 localStorage 并读回校验。
+   * 返回 { ok, error, config }，供配置页区分“保存成功 / 保存失败”并给出提示。
+   */
+  function saveConfig(storage, config, defaults) {
+    var normalized = normalizeConfig(config, defaults);
+    if (!storage || typeof storage.setItem !== 'function') {
+      return { ok: false, error: 'LOCAL_STORAGE_UNAVAILABLE', config: normalized };
+    }
+    try {
+      storage.setItem(CONFIG_KEY, JSON.stringify(normalized));
+    } catch (e) {
+      return { ok: false, error: (e && e.name) || 'SET_ITEM_ERROR', config: normalized };
+    }
+    var readBack = readConfig(storage, defaults);
+    if (JSON.stringify(readBack) !== JSON.stringify(normalized)) {
+      return { ok: false, error: 'VERIFY_FAILED', config: readBack };
+    }
+    return { ok: true, error: null, config: readBack };
+  }
+
+  /**
    * 尝试把每个事件里 data: 后的内容格式化为多行 JSON（仅用于展示，默认关闭）。
    * - 支持同一事件内多行 data:（按 SSE 规范用 \n 拼接后再尝试解析）
    * - 解析失败（如 data: [DONE]）或数据不以 { / [ 开头时，保持原样
@@ -389,6 +410,7 @@
     normalizeDefaults: normalizeDefaults,
     readConfig: readConfig,
     writeConfig: writeConfig,
+    saveConfig: saveConfig,
     clearConfig: clearConfig,
     base64ToText: base64ToText,
     bufferToText: bufferToText,

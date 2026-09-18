@@ -302,4 +302,41 @@ test('buildPreview: 空/非法 limit 回退内置默认 3000', () => {
   });
 });
 
+/* ---------- saveConfig：保存成功/失败的可判定结果（供配置页提示） ---------- */
+
+test('saveConfig: 写入成功且读回校验通过', () => {
+  const storage = createStorage();
+  const result = SseView.saveConfig(storage, { previewLimit: 1234, previewMode: 'head', trailingSeparator: true, formatJson: true }, SseView.DEFAULT_CONFIG);
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.error, null);
+  assert.deepStrictEqual(result.config, SseView.readConfig(storage));
+  assert.strictEqual(SseView.readConfig(storage).previewLimit, 1234);
+});
+
+test('saveConfig: localStorage 不可用时返回 LOCAL_STORAGE_UNAVAILABLE', () => {
+  const result = SseView.saveConfig(null, { previewLimit: 100 }, SseView.DEFAULT_CONFIG);
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.error, 'LOCAL_STORAGE_UNAVAILABLE');
+});
+
+test('saveConfig: setItem 抛错时返回错误名（如 QuotaExceededError）', () => {
+  const storage = createStorage();
+  storage.setItem = () => {
+    const err = new Error('quota');
+    err.name = 'QuotaExceededError';
+    throw err;
+  };
+  const result = SseView.saveConfig(storage, { previewLimit: 100 }, SseView.DEFAULT_CONFIG);
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.error, 'QuotaExceededError');
+});
+
+test('saveConfig: 写入被静默忽略（读回不一致）时返回 VERIFY_FAILED', () => {
+  const storage = createStorage();
+  storage.setItem = () => {};
+  const result = SseView.saveConfig(storage, { previewLimit: 999 }, SseView.DEFAULT_CONFIG);
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.error, 'VERIFY_FAILED');
+});
+
 console.log('\n通过 ' + passed + ' 项' + (process.exitCode ? '（存在失败）' : ''));
