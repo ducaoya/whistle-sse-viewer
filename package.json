@@ -16,7 +16,8 @@
     "inspectorConfig": {
       "previewLimit": 3000,
       "previewMode": "tail",
-      "trailingSeparator": false
+      "trailingSeparator": false,
+      "formatJson": false
     }
   },
   "keywords": [

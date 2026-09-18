@@ -60,10 +60,13 @@ w2 start -A /path/to/plugins-root     # plugins-root/whistle.sse-viewer/package.
 | 预览字符数 `previewLimit` | `3000` | 内容区最多展示多少字符；**填 `-1` 表示不裁剪，直接显示完整内容** |
 | 预览区取哪一段 `previewMode` | `tail` | 下拉选择：`tail` 尾部（推荐，流式场景最新内容优先）/ `head` 头部 |
 | 结尾补空行 `trailingSeparator` | `false` | 下拉选择：`true` 时在结尾补 `\n\n`，与原始流字节完全一致 |
+| data 内容 JSON 格式化 `formatJson` | `false` | 下拉选择：开启后会尝试把 `data:` 后的 JSON 格式化成多行展示（解析失败如 `data: [DONE]` 保持原样）；**预览 / View All / Copy All 均使用格式化后的内容** |
 
 补充说明：
 
 - 配置按**浏览器**保存（换浏览器 / 隐身窗口会回到默认值）；`View All` 弹窗始终展示完整内容，不受 `previewLimit` 影响
+- 预览区与 `View All` 弹窗内的**长行会自动换行**（仅显示层换行，不改变内容）
+- `previewLimit` 留空时按默认值处理，输入框失焦会自动填回默认值
 - `package.json` 的 `whistleConfig.inspectorConfig` 仅作为**默认值**（配置页会展示它）；需要改默认值时改它并 `w2 restart`
 - 配置页里点 **恢复默认** 会清除 localStorage 中的配置
 

@@ -120,6 +120,23 @@
     </div>
   </div>
 
+  <div class="row">
+    <div class="label">
+      <span>data 内容 JSON 格式化</span><code>formatJson</code>
+      <span class="default-tag" id="tag-json"></span>
+    </div>
+    <div class="desc">
+      开启后会尝试把 <code>data:</code> 后的 JSON 内容格式化成多行，便于阅读；解析失败（如 <code>data: [DONE]</code>）或不是 JSON 时保持原样。<br>
+      <b>预览、View All、Copy All 均使用格式化后的内容</b>；需要原始可回放的 SSE 文本时请关闭本项。
+    </div>
+    <div class="control">
+      <select id="formatJson">
+        <option value="false">关闭</option>
+        <option value="true">开启</option>
+      </select>
+    </div>
+  </div>
+
   <div class="actions">
     <button class="primary" id="save">保存</button>
     <button id="reset">恢复默认</button>
@@ -142,9 +159,11 @@
     limit: document.getElementById('previewLimit'),
     mode: document.getElementById('previewMode'),
     sep: document.getElementById('trailingSeparator'),
+    json: document.getElementById('formatJson'),
     tagLimit: document.getElementById('tag-limit'),
     tagMode: document.getElementById('tag-mode'),
     tagSep: document.getElementById('tag-sep'),
+    tagJson: document.getElementById('tag-json'),
     limitHint: document.getElementById('limit-hint'),
     status: document.getElementById('status'),
     current: document.getElementById('current'),
@@ -172,6 +191,7 @@
     dom.limit.value = config.previewLimit;
     dom.mode.value = config.previewMode;
     dom.sep.value = config.trailingSeparator ? 'true' : 'false';
+    dom.json.value = config.formatJson ? 'true' : 'false';
     renderLimitHint();
     renderCurrent();
   }
@@ -203,7 +223,8 @@
     return {
       previewLimit: value,
       previewMode: dom.mode.value,
-      trailingSeparator: dom.sep.value === 'true'
+      trailingSeparator: dom.sep.value === 'true',
+      formatJson: dom.json.value === 'true'
     };
   }
 
@@ -218,6 +239,7 @@
     dom.limit.placeholder = String(defaults.previewLimit);
     dom.tagMode.textContent = '默认 ' + defaults.previewMode;
     dom.tagSep.textContent = '默认 ' + (defaults.trailingSeparator ? '补' : '不补');
+    dom.tagJson.textContent = '默认 ' + (defaults.formatJson ? '开启' : '关闭');
   }
 
   dom.limit.addEventListener('input', function () {

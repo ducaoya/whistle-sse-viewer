@@ -22,7 +22,8 @@
   var DEFAULT_CONFIG = {
     previewLimit: PREVIEW_LIMIT,
     previewMode: 'tail',
-    trailingSeparator: false
+    trailingSeparator: false,
+    formatJson: false
   };
   var textDecoder = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { fatal: false }) : null;
 
@@ -222,6 +223,9 @@
     if (typeof raw.trailingSeparator === 'boolean') {
       base.trailingSeparator = raw.trailingSeparator;
     }
+    if (typeof raw.formatJson === 'boolean') {
+      base.formatJson = raw.formatJson;
+    }
     return base;
   }
 
@@ -229,7 +233,8 @@
     var base = {
       previewLimit: DEFAULT_CONFIG.previewLimit,
       previewMode: DEFAULT_CONFIG.previewMode,
-      trailingSeparator: DEFAULT_CONFIG.trailingSeparator
+      trailingSeparator: DEFAULT_CONFIG.trailingSeparator,
+      formatJson: DEFAULT_CONFIG.formatJson
     };
     if (!defaults || typeof defaults !== 'object') {
       return base;
@@ -246,6 +251,9 @@
     }
     if (typeof defaults.trailingSeparator === 'boolean') {
       base.trailingSeparator = defaults.trailingSeparator;
+    }
+    if (typeof defaults.formatJson === 'boolean') {
+      base.formatJson = defaults.formatJson;
     }
     return base;
   }
@@ -290,6 +298,76 @@
     }
   }
 
+  /**
+   * 尝试把每个事件里 data: 后的内容格式化为多行 JSON（仅用于展示，默认关闭）。
+   * - 支持同一事件内多行 data:（按 SSE 规范用 \n 拼接后再尝试解析）
+   * - 解析失败（如 data: [DONE]）或数据不以 { / [ 开头时，保持原样
+   * - 事件之间仍用 \n\n 分隔；event: / id: / 注释行原样保留
+   */
+  function formatJsonData(text) {
+    if (typeof text !== 'string' || !text) {
+      return typeof text === 'string' ? text : '';
+    }
+    return text
+      .split(SSE_SEP)
+      .map(function (block) {
+        if (!block) {
+          return block;
+        }
+        var out = [];
+        var group = [];
+        function flush() {
+          if (!group.length) {
+            return;
+          }
+          var values = group.map(function (item) {
+            return item.value;
+          });
+          var formatted = tryFormatJson(values.join('\n'));
+          if (formatted === null) {
+            group.forEach(function (item) {
+              out.push(item.raw);
+            });
+          } else {
+            var formattedLines = formatted.split('\n');
+            out.push('data: ' + formattedLines[0]);
+            for (var i = 1; i < formattedLines.length; i++) {
+              out.push(formattedLines[i]);
+            }
+          }
+          group = [];
+        }
+        block.split('\n').forEach(function (line) {
+          var matched = /^data:(\s?)([\s\S]*)$/.exec(line);
+          if (matched) {
+            group.push({ raw: line, value: matched[2] });
+            return;
+          }
+          flush();
+          out.push(line);
+        });
+        flush();
+        return out.join('\n');
+      })
+      .join(SSE_SEP);
+  }
+
+  function tryFormatJson(value) {
+    var trimmed = String(value == null ? '' : value).trim();
+    if (!trimmed) {
+      return null;
+    }
+    var first = trimmed.charAt(0);
+    if (first !== '{' && first !== '[') {
+      return null;
+    }
+    try {
+      return JSON.stringify(JSON.parse(trimmed), null, 2);
+    } catch (e) {
+      return null;
+    }
+  }
+
   function summarize(session, text) {
     var frames = getResFrames(session);
     var res = (session && session.res) || {};
@@ -319,6 +397,7 @@
     getResFrames: getResFrames,
     bodyText: bodyText,
     buildFullText: buildFullText,
+    formatJsonData: formatJsonData,
     buildPreview: buildPreview,
     summarize: summarize
   };

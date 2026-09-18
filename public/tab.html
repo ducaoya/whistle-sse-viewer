@@ -261,7 +261,9 @@
     }
 
     var cfg = currentConfig();
-    var fullText = SseView.buildFullText(session, { trailingSeparator: cfg.trailingSeparator });
+    var rawText = SseView.buildFullText(session, { trailingSeparator: cfg.trailingSeparator });
+    // 开启 formatJson 时，展示/复制统一使用格式化后的内容（原始内容可在 Frames 面板查看）
+    var fullText = cfg.formatJson ? SseView.formatJsonData(rawText) : rawText;
     state.fullText = fullText;
 
     var info = SseView.summarize(session, fullText);
@@ -270,6 +272,9 @@
     parts.push(info.charCount + ' 字符');
     if (cfg.previewLimit < 0) {
       parts.push('不裁剪');
+    }
+    if (cfg.formatJson) {
+      parts.push('JSON 已格式化');
     }
     if (info.streaming) {
       parts.push('流式接收中…');
@@ -333,7 +338,8 @@
       'color:var(--c-default,#333);background:transparent;border:1px solid var(--c-border,#dfe1e6);border-radius:2px;white-space:nowrap;}',
     '.sse-ovl-btn:hover{color:var(--c-link,#1a73e8);border-color:var(--c-link,#1a73e8);}',
     '.sse-ovl-body{flex:1;min-height:0;width:100%;box-sizing:border-box;padding:8px;margin:0;border:none;outline:none;resize:none;' +
-      'font-family:Menlo,Consolas,"Courier New",monospace;font-size:12px;line-height:1.6;white-space:pre;overflow:auto;' +
+      'font-family:Menlo,Consolas,"Courier New",monospace;font-size:12px;line-height:1.6;' +
+      'white-space:pre-wrap;word-break:break-all;overflow-wrap:anywhere;overflow:auto;' +
       'background:var(--b-default,#fff);color:var(--c-default,#333);}'
   ].join('');
 

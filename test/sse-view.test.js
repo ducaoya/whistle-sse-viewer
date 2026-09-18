@@ -158,7 +158,8 @@ test('normalizeConfig: 空值返回内置默认', () => {
   assert.deepStrictEqual(SseView.normalizeConfig(null), {
     previewLimit: 3000,
     previewMode: 'tail',
-    trailingSeparator: false
+    trailingSeparator: false,
+    formatJson: false
   });
 });
 
@@ -185,10 +186,54 @@ test('normalizeConfig: previewMode / trailingSeparator 校验', () => {
 });
 
 test('normalizeConfig: 自定义默认值生效并作为回退', () => {
-  const defaults = { previewLimit: 800, previewMode: 'head', trailingSeparator: true };
+  const defaults = { previewLimit: 800, previewMode: 'head', trailingSeparator: true, formatJson: true };
   assert.deepStrictEqual(SseView.normalizeConfig(null, defaults), defaults);
   assert.deepStrictEqual(SseView.normalizeConfig({ previewLimit: 'bad' }, defaults), defaults);
   assert.strictEqual(SseView.normalizeConfig({ previewLimit: 100 }, defaults).previewMode, 'head');
+  assert.strictEqual(SseView.normalizeConfig({ previewLimit: 100 }, { previewLimit: 800 }).formatJson, false);
+});
+
+test('normalizeConfig: formatJson 只接受布尔值（默认关闭）', () => {
+  assert.strictEqual(SseView.normalizeConfig({ formatJson: true }).formatJson, true);
+  assert.strictEqual(SseView.normalizeConfig({ formatJson: false }).formatJson, false);
+  assert.strictEqual(SseView.normalizeConfig({ formatJson: 'yes' }).formatJson, false);
+  assert.strictEqual(SseView.normalizeConfig(null).formatJson, false);
+});
+
+/* ---------- data: 内容的 JSON 格式化 ---------- */
+
+test('formatJsonData: 单行 JSON 被格式化成多行', () => {
+  const out = SseView.formatJsonData('data: {"a":1,"b":[1,2]}');
+  assert.strictEqual(out, 'data: {\n  "a": 1,\n  "b": [\n    1,\n    2\n  ]\n}');
+});
+
+test('formatJsonData: 保留 event/id/注释等其它行', () => {
+  const out = SseView.formatJsonData('event: message\nid: 1\ndata: {"a":1}');
+  assert.strictEqual(out, 'event: message\nid: 1\ndata: {\n  "a": 1\n}');
+  assert.strictEqual(SseView.formatJsonData(': connected'), ': connected');
+});
+
+test('formatJsonData: 非 JSON（[DONE]、纯文本、空 data）保持原样', () => {
+  assert.strictEqual(SseView.formatJsonData('data: [DONE]'), 'data: [DONE]');
+  assert.strictEqual(SseView.formatJsonData('data: hello'), 'data: hello');
+  assert.strictEqual(SseView.formatJsonData('data:'), 'data:');
+  assert.strictEqual(SseView.formatJsonData('data: {"broken":'), 'data: {"broken":');
+});
+
+test('formatJsonData: 多行 data: 按 SSE 规范拼接后再解析', () => {
+  const out = SseView.formatJsonData('data: {"a":\ndata: 1}');
+  assert.strictEqual(out, 'data: {\n  "a": 1\n}');
+});
+
+test('formatJsonData: 多个事件之间仍用 \\n\\n 分隔，JSON 数组也可格式化', () => {
+  const out = SseView.formatJsonData('data: [1,2]\n\ndata: {"x":true}');
+  assert.strictEqual(out, 'data: [\n  1,\n  2\n]\n\ndata: {\n  "x": true\n}');
+});
+
+test('formatJsonData: 空值与尾部空行安全', () => {
+  assert.strictEqual(SseView.formatJsonData(''), '');
+  assert.strictEqual(SseView.formatJsonData(null), '');
+  assert.strictEqual(SseView.formatJsonData('data: {"a":1}\n\n'), 'data: {\n  "a": 1\n}\n\n');
 });
 
 test('readConfig: 无存储时返回默认值', () => {
@@ -198,13 +243,24 @@ test('readConfig: 无存储时返回默认值', () => {
 
 test('readConfig: 读取 localStorage 并覆盖默认值', () => {
   const storage = createStorage({
-    [SseView.CONFIG_KEY]: JSON.stringify({ previewLimit: -1, previewMode: 'head', trailingSeparator: true })
+    [SseView.CONFIG_KEY]: JSON.stringify({
+      previewLimit: -1,
+      previewMode: 'head',
+      trailingSeparator: true,
+      formatJson: true
+    })
   });
   assert.deepStrictEqual(SseView.readConfig(storage), {
     previewLimit: -1,
     previewMode: 'head',
-    trailingSeparator: true
+    trailingSeparator: true,
+    formatJson: true
   });
+  // 旧版本 localStorage 里没有 formatJson 时，回退默认（关闭）
+  const legacy = createStorage({
+    [SseView.CONFIG_KEY]: JSON.stringify({ previewLimit: 500, previewMode: 'head', trailingSeparator: true })
+  });
+  assert.strictEqual(SseView.readConfig(legacy).formatJson, false);
 });
 
 test('readConfig: JSON 损坏时回退默认值', () => {
