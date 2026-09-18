@@ -125,9 +125,18 @@ function runPage(options) {
     elements[id] = createElement(id);
   });
   const storage = opts.storage === null ? null : opts.storage || createStorage();
+  const bodyHtml = [];
   const sandbox = {
-    window: { localStorage: storage, SseView: SseView },
-    document: { getElementById: (id) => elements[id] || null },
+    window: {
+      localStorage: storage,
+      SseView: opts.sseView === undefined ? SseView : opts.sseView
+    },
+    document: {
+      getElementById: (id) => elements[id] || null,
+      body: {
+        insertAdjacentHTML: (position, html) => bodyHtml.push(html)
+      }
+    },
     fetch: opts.fetch || (() => Promise.resolve(FETCH_OK)),
     // 不真正排定定时器，避免测试等待 toast 自动消失
     setTimeout: () => 0,
@@ -136,7 +145,7 @@ function runPage(options) {
   };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(INLINE_SCRIPT, sandbox, { filename: 'index.html' });
-  return { elements, storage };
+  return { elements, storage, bodyHtml };
 }
 
 function tick() {
@@ -239,6 +248,13 @@ check('恢复默认：清除配置并提示成功', () => {
   assert.strictEqual(elements.previewLimit.value, '3000');
   assert.ok(elements.toast.textContent.indexOf('已恢复默认值') !== -1, 'toast: ' + elements.toast.textContent);
   assert.ok(elements.toast.className.indexOf('ok') !== -1);
+});
+
+check('sse-view.js 未加载时给出可见报错，而不是静默空白', () => {
+  const { bodyHtml, elements } = runPage({ sseView: null });
+  assert.strictEqual(bodyHtml.length, 1, '应插入一条报错横幅');
+  assert.ok(bodyHtml[0].indexOf('加载 sse-view.js 失败') !== -1, bodyHtml[0].slice(0, 120));
+  assert.strictEqual(elements.previewLimit.value, '', '此时不应填值（由报错横幅提示）');
 });
 
 (async function () {

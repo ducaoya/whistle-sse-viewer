@@ -163,12 +163,22 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="./sse-view.js"></script>
+<script src="./public/sse-view.js"></script>
 <script>
 (function () {
   'use strict';
 
   var SseView = window.SseView;
+  // 依赖脚本加载失败时明确报错，避免“输入框空白”这种无提示的故障
+  if (!SseView) {
+    document.body.insertAdjacentHTML(
+      'afterbegin',
+      '<div style="margin:12px;padding:10px 12px;border:1px solid #dc2626;border-radius:3px;color:#dc2626;font-size:12px;">' +
+        '加载 sse-view.js 失败：请刷新页面（Ctrl+F5）后重试；若仍失败请重新安装插件。' +
+        '</div>'
+    );
+    return;
+  }
   var dom = {
     limit: document.getElementById('previewLimit'),
     mode: document.getElementById('previewMode'),
