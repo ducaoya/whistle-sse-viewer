@@ -195,6 +195,12 @@
     dom.status.className = 'status' + (type ? ' ' + type : '');
   }
 
+  // 用户改过表单后，异步拿到的默认值不再覆盖用户输入
+  var formDirty = false;
+  function markDirty() {
+    formDirty = true;
+  }
+
   // 成功 / 失败提示（右上角浮动提示，自动消失）
   function showToast(message, type) {
     var variant = type === 'err' ? 'err' : 'ok';
@@ -296,6 +302,7 @@
   }
 
   dom.limit.addEventListener('input', function () {
+    markDirty();
     var value = renderLimitHint();
     if (value === null) {
       setStatus('预览字符数不合法', 'err');
@@ -303,6 +310,11 @@
       setStatus('');
     }
   });
+
+  // 下拉选择也标记为已修改
+  dom.mode.addEventListener('change', markDirty);
+  dom.sep.addEventListener('change', markDirty);
+  dom.json.addEventListener('change', markDirty);
 
   // 失焦时若为空，自动填上默认值
   dom.limit.addEventListener('blur', function () {
@@ -359,7 +371,11 @@
     showToast('已恢复默认值：本机配置已清除', 'ok');
   });
 
-  // 默认值来自 package.json 的 whistleConfig.inspectorConfig
+  // 首屏先用内置默认值渲染一次：保证“预览字符数”输入框立刻填入 3000，而不是空白
+  renderDefaultTags();
+  fillForm(SseView.readConfig(getStorage(), defaults));
+
+  // 默认值以 package.json 的 whistleConfig.inspectorConfig 为准（取不到则沿用内置默认值）
   fetch('./api/defaults')
     .then(function (res) {
       return res.ok ? res.json() : null;
@@ -374,7 +390,10 @@
     })
     .then(function () {
       renderDefaultTags();
-      fillForm(SseView.readConfig(getStorage(), defaults));
+      // 用户在加载期间改过表单则不做覆盖
+      if (!formDirty) {
+        fillForm(SseView.readConfig(getStorage(), defaults));
+      }
     });
 })();
 </script>
