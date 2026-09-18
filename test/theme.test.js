@@ -175,6 +175,26 @@ check('兜底调色板浅/深两套齐全', () => {
   });
 });
 
+check('watch 注册 whistle 官方钩子 onWhistleThemeChange（stop 后移除）', () => {
+  const ownDoc = createOwnDocument();
+  const parentWin = createParentWindow({ theme: 'light', vars: WHISTLE_LIGHT });
+  const win = createWindow({ document: ownDoc, parent: parentWin });
+  const stop = Theme.watch(win, () => {}, 1000);
+  assert.strictEqual(typeof win.onWhistleThemeChange, 'function', '应注册钩子');
+
+  // 模拟宿主切深色后通过官方钩子通知
+  parentWin.getComputedStyle = () => ({
+    getPropertyValue: (name) => (name in WHISTLE_DARK ? WHISTLE_DARK[name] : '')
+  });
+  parentWin.document.documentElement.getAttribute = () => 'dark';
+  win.onWhistleThemeChange('dark');
+  assert.strictEqual(ownDoc._attrs['data-theme'], 'dark');
+  assert.strictEqual(ownDoc._props['--b-default'], '#1a1a1a');
+
+  stop();
+  assert.strictEqual(win.onWhistleThemeChange, null, 'stop 后应移除钩子');
+});
+
 // 异步：watch 能跟随宿主主题变化
 (async function () {
   try {

@@ -74,7 +74,9 @@ w2 start -A /path/to/plugins-root     # plugins-root/whistle.sse-viewer/package.
 
 ## 主题适配
 
-插件界面会**跟随 Whistle 的皮肤（浅色 / 深色）**：`public/theme.js` 会读取宿主页面的 CSS 变量（`--b-default`、`--b-bar`、`--c-border`、`--v-border`、`--h-field`、`--c-link` 等）并同步到插件页，同时镜像 `data-theme`；切换主题时自动重新同步（MutationObserver + 定时兜底），Whistle 换肤或自定义主题也会自动跟随。
+插件界面会**跟随 Whistle 的皮肤（浅色 / 深色）**：`public/theme.js` 读取宿主页面的 CSS 变量（`--b-default`、`--b-bar`、`--c-border`、`--v-border`、`--h-field`、`--c-link` 等）并同步到插件页。
+
+与 Whistle 自身的机制配合：Whistle 会周期性地给插件 iframe 设置 `data-theme` 并调用 `window.onWhistleThemeChange(theme)`（它只推送主题名，不推送其它变量），插件监听该钩子后立即重新同步全部变量；同时用 MutationObserver + 定时轮询兜底，因此在旧版本 Whistle 或钩子未触发时同样能跟随，Whistle 换肤或自定义主题也会自动跟随。
 
 无法访问宿主页面时（例如单独打开插件页），回退到内置的浅/深两套调色板并跟随系统偏好（`prefers-color-scheme`）。
 

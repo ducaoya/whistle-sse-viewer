@@ -262,6 +262,7 @@
     var state = {};
     var timer = null;
     var observer = null;
+    var hook = null;
 
     function tick(forceNotify) {
       var result = sync(win, state);
@@ -271,6 +272,17 @@
         }
       }
       return result;
+    }
+
+    // whistle 官方钩子：宿主会在主题变化时调用 iframe 里的 window.onWhistleThemeChange(theme)
+    // （whistle 只推送 data-theme，这里借此立即重新同步全部变量）
+    try {
+      hook = function () {
+        tick(true);
+      };
+      win.onWhistleThemeChange = hook;
+    } catch (e) {
+      hook = null;
     }
 
     var parentWin = getParentWindow(win);
@@ -324,6 +336,16 @@
           /* 忽略 */
         }
         observer = null;
+      }
+      if (hook) {
+        try {
+          if (win.onWhistleThemeChange === hook) {
+            win.onWhistleThemeChange = null;
+          }
+        } catch (e) {
+          /* 忽略 */
+        }
+        hook = null;
       }
     };
   }
