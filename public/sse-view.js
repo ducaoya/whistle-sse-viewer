@@ -17,6 +17,13 @@
 
   var PREVIEW_LIMIT = 3000;
   var SSE_SEP = '\n\n';
+  var CONFIG_KEY = 'whistle.sse-viewer.config';
+  // package.json 的 whistleConfig.inspectorConfig 作为默认值
+  var DEFAULT_CONFIG = {
+    previewLimit: PREVIEW_LIMIT,
+    previewMode: 'tail',
+    trailingSeparator: false
+  };
   var textDecoder = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { fatal: false }) : null;
 
   function bytesToText(bytes) {
@@ -175,6 +182,10 @@
    */
   function buildPreview(text, limit, mode) {
     text = typeof text === 'string' ? text : '';
+    // limit < 0（-1）：不裁剪，返回完整内容
+    if (typeof limit === 'number' && limit < 0) {
+      return { text: text, truncated: false, omitted: 0, mode: mode || 'tail', unlimited: true };
+    }
     limit = limit > 0 ? limit : PREVIEW_LIMIT;
     if (text.length <= limit) {
       return { text: text, truncated: false, omitted: 0, mode: mode || 'tail' };
@@ -183,6 +194,100 @@
       return { text: text.slice(0, limit), truncated: true, omitted: text.length - limit, mode: 'head' };
     }
     return { text: text.slice(-limit), truncated: true, omitted: text.length - limit, mode: 'tail' };
+  }
+
+  /**
+   * 配置规范化：
+   * - previewLimit：-1 表示不裁剪（显示完整内容），正整数为预览字符数，其余值回退默认
+   * - previewMode：'tail' | 'head'
+   * - trailingSeparator：boolean
+   */
+  function normalizeConfig(raw, defaults) {
+    var base = normalizeDefaults(defaults);
+    if (!raw || typeof raw !== 'object') {
+      return base;
+    }
+    var limit = raw.previewLimit;
+    if (typeof limit === 'string' && limit.trim() !== '') {
+      limit = Number(limit);
+    }
+    if (typeof limit === 'number' && isFinite(limit) && Math.floor(limit) === limit) {
+      if (limit === -1 || limit > 0) {
+        base.previewLimit = limit;
+      }
+    }
+    if (raw.previewMode === 'tail' || raw.previewMode === 'head') {
+      base.previewMode = raw.previewMode;
+    }
+    if (typeof raw.trailingSeparator === 'boolean') {
+      base.trailingSeparator = raw.trailingSeparator;
+    }
+    return base;
+  }
+
+  function normalizeDefaults(defaults) {
+    var base = {
+      previewLimit: DEFAULT_CONFIG.previewLimit,
+      previewMode: DEFAULT_CONFIG.previewMode,
+      trailingSeparator: DEFAULT_CONFIG.trailingSeparator
+    };
+    if (!defaults || typeof defaults !== 'object') {
+      return base;
+    }
+    var limit = defaults.previewLimit;
+    if (typeof limit === 'string' && limit.trim() !== '') {
+      limit = Number(limit);
+    }
+    if (typeof limit === 'number' && isFinite(limit) && Math.floor(limit) === limit && (limit === -1 || limit > 0)) {
+      base.previewLimit = limit;
+    }
+    if (defaults.previewMode === 'tail' || defaults.previewMode === 'head') {
+      base.previewMode = defaults.previewMode;
+    }
+    if (typeof defaults.trailingSeparator === 'boolean') {
+      base.trailingSeparator = defaults.trailingSeparator;
+    }
+    return base;
+  }
+
+  // 从 localStorage 读取配置（不存在或解析失败时回退默认值）
+  function readConfig(storage, defaults) {
+    var base = normalizeDefaults(defaults);
+    if (!storage || typeof storage.getItem !== 'function') {
+      return base;
+    }
+    try {
+      var raw = storage.getItem(CONFIG_KEY);
+      if (!raw) {
+        return base;
+      }
+      return normalizeConfig(JSON.parse(raw), base);
+    } catch (e) {
+      return base;
+    }
+  }
+
+  // 写入 localStorage（返回规范化后的配置）
+  function writeConfig(storage, config, defaults) {
+    var normalized = normalizeConfig(config, defaults);
+    if (storage && typeof storage.setItem === 'function') {
+      try {
+        storage.setItem(CONFIG_KEY, JSON.stringify(normalized));
+      } catch (e) {
+        /* 忽略写入失败（隐私模式/配额） */
+      }
+    }
+    return normalized;
+  }
+
+  function clearConfig(storage) {
+    if (storage && typeof storage.removeItem === 'function') {
+      try {
+        storage.removeItem(CONFIG_KEY);
+      } catch (e) {
+        /* 忽略 */
+      }
+    }
   }
 
   function summarize(session, text) {
@@ -200,6 +305,13 @@
   return {
     PREVIEW_LIMIT: PREVIEW_LIMIT,
     SSE_SEP: SSE_SEP,
+    CONFIG_KEY: CONFIG_KEY,
+    DEFAULT_CONFIG: DEFAULT_CONFIG,
+    normalizeConfig: normalizeConfig,
+    normalizeDefaults: normalizeDefaults,
+    readConfig: readConfig,
+    writeConfig: writeConfig,
+    clearConfig: clearConfig,
     base64ToText: base64ToText,
     bufferToText: bufferToText,
     frameToText: frameToText,

@@ -98,9 +98,8 @@
     visible: true,
     session: null,
     fullText: '',
-    previewLimit: DEFAULT_PREVIEW_LIMIT,
-    previewMode: 'tail',
-    trailingSeparator: false,
+    // 默认值（来自 package.json 的 inspectorConfig）与 localStorage 配置
+    injectedConfig: null,
     lastRenderKey: '',
     pollTimer: null
   };
@@ -200,6 +199,21 @@
     fallbackCopy(text);
   }
 
+  /* ---------------- 配置：localStorage 优先，其次 package.json 默认值 ---------------- */
+
+  function currentConfig() {
+    var SseView = window.SseView;
+    if (!SseView) {
+      return { previewLimit: DEFAULT_PREVIEW_LIMIT, previewMode: 'tail', trailingSeparator: false };
+    }
+    var defaults = state.injectedConfig || (bridge.config || null);
+    try {
+      return SseView.readConfig(window.localStorage, defaults);
+    } catch (e) {
+      return SseView.normalizeDefaults(defaults);
+    }
+  }
+
   /* ---------------- 主界面渲染 ---------------- */
 
   function getSession() {
@@ -246,13 +260,17 @@
       return;
     }
 
-    var fullText = SseView.buildFullText(session, { trailingSeparator: state.trailingSeparator });
+    var cfg = currentConfig();
+    var fullText = SseView.buildFullText(session, { trailingSeparator: cfg.trailingSeparator });
     state.fullText = fullText;
 
     var info = SseView.summarize(session, fullText);
     var parts = ['<b>SSE</b>'];
     parts.push(info.frameCount + ' 条消息');
     parts.push(info.charCount + ' 字符');
+    if (cfg.previewLimit < 0) {
+      parts.push('不裁剪');
+    }
     if (info.streaming) {
       parts.push('流式接收中…');
     } else if (session.endTime) {
@@ -276,7 +294,7 @@
       return;
     }
 
-    var preview = SseView.buildPreview(fullText, state.previewLimit, state.previewMode);
+    var preview = SseView.buildPreview(fullText, cfg.previewLimit, cfg.previewMode);
     var renderKey = [fullText.length, preview.text.length, preview.truncated].join(':');
     if (renderKey !== state.lastRenderKey) {
       state.lastRenderKey = renderKey;
@@ -472,6 +490,14 @@
   dom.copyAll.addEventListener('click', function () {
     copyAll(state.fullText);
   });
+  // 配置页（Options）保存后会触发 storage 事件，立即重新渲染
+  window.addEventListener('storage', function (e) {
+    var key = window.SseView && window.SseView.CONFIG_KEY;
+    if (!e || e.key === null || e.key === key) {
+      state.lastRenderKey = '';
+      render();
+    }
+  });
   document.addEventListener('keydown', function (e) {
     if (e.keyCode === 27 && overlay.isOpen()) {
       overlay.close();
@@ -516,20 +542,6 @@
     }, POLL_INTERVAL);
   }
 
-  function applyConfig(config) {
-    if (!config || typeof config !== 'object') {
-      return;
-    }
-    var limit = parseInt(config.previewLimit, 10);
-    if (limit > 0) {
-      state.previewLimit = limit;
-    }
-    if (config.previewMode === 'head' || config.previewMode === 'tail') {
-      state.previewMode = config.previewMode;
-    }
-    state.trailingSeparator = !!config.trailingSeparator;
-  }
-
   function connect(retry) {
     var parentWin = window.parent;
     var ready = parentWin && typeof parentWin.onWhistleInspectorCustomTabReady === 'function';
@@ -550,7 +562,8 @@
         bridge.copyText = options.copyText;
         bridge.msgBox = options.msgBox || {};
         bridge.config = options.config;
-        applyConfig(document.whistleInspectorConfig || options.config);
+        state.injectedConfig = document.whistleInspectorConfig || options.config || null;
+        state.lastRenderKey = '';
         state.session = null;
         render();
         startPolling();

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>whistle.sse-viewer 配置</title>
+<style>
+  :root {
+    --sse-bg: var(--b-default, #fff);
+    --sse-fg: var(--c-default, #333);
+    --sse-thin: var(--c-thin, #888);
+    --sse-border: var(--c-border, #dfe1e6);
+    --sse-bar: var(--b-bar, #f7f8fa);
+    --sse-link: var(--c-link, #1a73e8);
+    --sse-mono: Menlo, Consolas, "Courier New", monospace;
+  }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 13px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--sse-bg);
+    color: var(--sse-fg);
+    overflow: auto;
+  }
+  .wrap { max-width: 720px; padding: 16px 18px 24px; }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  .sub { color: var(--sse-thin); font-size: 12px; margin-bottom: 14px; }
+
+  .row { padding: 12px 0; border-top: 1px solid var(--sse-border); }
+  .row:last-of-type { border-bottom: 1px solid var(--sse-border); }
+  .label { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .label code {
+    font-family: var(--sse-mono); font-size: 12px; font-weight: 400;
+    background: var(--sse-bar); padding: 1px 5px; border-radius: 2px; color: var(--sse-thin);
+  }
+  .default-tag {
+    font-size: 11px; font-weight: 400; color: var(--sse-thin);
+    border: 1px solid var(--sse-border); border-radius: 2px; padding: 0 5px; white-space: nowrap;
+  }
+  .desc { color: var(--sse-thin); font-size: 12px; margin: 4px 0 8px; }
+  .control { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  input[type="number"], select {
+    font: inherit; color: var(--sse-fg); background: var(--sse-bg);
+    border: 1px solid var(--sse-border); border-radius: 2px; padding: 3px 6px; min-width: 120px;
+  }
+  input[type="number"] { width: 120px; }
+  select { min-width: 220px; }
+  .unit { color: var(--sse-thin); font-size: 12px; }
+  .hint { font-size: 12px; color: var(--sse-thin); }
+  .hint.warn { color: #d97706; }
+
+  .actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+  button {
+    font: inherit; height: 28px; padding: 0 14px; cursor: pointer;
+    color: var(--sse-fg); background: var(--sse-bg);
+    border: 1px solid var(--sse-border); border-radius: 2px;
+  }
+  button.primary { color: #fff; background: var(--sse-link); border-color: var(--sse-link); }
+  button:hover:not(:disabled) { opacity: .88; }
+  .status { font-size: 12px; }
+  .status.ok { color: #16a34a; }
+  .status.err { color: #dc2626; }
+  .status.info { color: var(--sse-thin); }
+
+  .current {
+    margin-top: 18px; padding: 10px 12px; border: 1px solid var(--sse-border);
+    border-radius: 3px; background: var(--sse-bar); font-size: 12px;
+  }
+  .current pre { margin: 6px 0 0; font-family: var(--sse-mono); font-size: 12px; white-space: pre-wrap; }
+  .current .source { color: var(--sse-thin); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>whistle.sse-viewer 配置</h1>
+  <div class="sub">
+    配置保存在本机浏览器的 <b>localStorage</b>（键名 <code>whistle.sse-viewer.config</code>），
+    仅影响当前浏览器的 Whistle 界面；保存后 <b>SSE Tab 立即生效</b>，无需重启 Whistle，也无需修改 package.json。
+  </div>
+
+  <div class="row">
+    <div class="label">
+      <span>预览字符数</span><code>previewLimit</code>
+      <span class="default-tag" id="tag-limit"></span>
+    </div>
+    <div class="desc">内容区最多展示多少字符。<b>填 -1 表示不裁剪，直接显示完整内容</b>。</div>
+    <div class="control">
+      <input type="number" id="previewLimit" step="100" min="-1">
+      <span class="unit">字符</span>
+      <span class="hint" id="limit-hint"></span>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="label">
+      <span>预览区取哪一段</span><code>previewMode</code>
+      <span class="default-tag" id="tag-mode"></span>
+    </div>
+    <div class="desc">内容超长时展示哪一段：<b>尾部</b>适合流式场景（最新内容优先），<b>头部</b>适合看开头。</div>
+    <div class="control">
+      <select id="previewMode">
+        <option value="tail">尾部（tail）</option>
+        <option value="head">头部（head）</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="label">
+      <span>结尾补空行</span><code>trailingSeparator</code>
+      <span class="default-tag" id="tag-sep"></span>
+    </div>
+    <div class="desc">
+      Whistle 拆分帧时会去掉 <code>\n\n</code> 分隔符，本插件用 <code>\n\n</code> 重新拼接。<br>
+      若原始流以 <code>\n\n</code> 结尾，选择 <b>补</b> 可与原始字节完全一致。
+    </div>
+    <div class="control">
+      <select id="trailingSeparator">
+        <option value="false">不补（忠实于帧内容）</option>
+        <option value="true">补（与原始流一致）</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="primary" id="save">保存</button>
+    <button id="reset">恢复默认</button>
+    <span class="status" id="status"></span>
+  </div>
+
+  <div class="current">
+    <div>当前生效配置<span class="source" id="source"></span></div>
+    <pre id="current"></pre>
+  </div>
+</div>
+
+<script src="./sse-view.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var SseView = window.SseView;
+  var dom = {
+    limit: document.getElementById('previewLimit'),
+    mode: document.getElementById('previewMode'),
+    sep: document.getElementById('trailingSeparator'),
+    tagLimit: document.getElementById('tag-limit'),
+    tagMode: document.getElementById('tag-mode'),
+    tagSep: document.getElementById('tag-sep'),
+    limitHint: document.getElementById('limit-hint'),
+    status: document.getElementById('status'),
+    current: document.getElementById('current'),
+    source: document.getElementById('source'),
+    save: document.getElementById('save'),
+    reset: document.getElementById('reset')
+  };
+
+  var defaults = SseView.DEFAULT_CONFIG;
+
+  function setStatus(text, type) {
+    dom.status.textContent = text || '';
+    dom.status.className = 'status' + (type ? ' ' + type : '');
+  }
+
+  function hasLocalConfig() {
+    try {
+      return !!window.localStorage.getItem(SseView.CONFIG_KEY);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function fillForm(config) {
+    dom.limit.value = config.previewLimit;
+    dom.mode.value = config.previewMode;
+    dom.sep.value = config.trailingSeparator ? 'true' : 'false';
+    renderLimitHint();
+    renderCurrent();
+  }
+
+  function renderLimitHint() {
+    var raw = String(dom.limit.value).trim();
+    var value = Number(raw);
+    if (raw === '' || !isFinite(value) || Math.floor(value) !== value || (value !== -1 && value <= 0)) {
+      dom.limitHint.textContent = '请输入 -1（不裁剪）或大于 0 的整数';
+      dom.limitHint.className = 'hint warn';
+      return null;
+    }
+    dom.limitHint.className = 'hint';
+    dom.limitHint.textContent = value === -1 ? '不裁剪：内容区显示完整内容' : '超出部分会被省略，可在 View All 弹窗看全量';
+    return value;
+  }
+
+  function readForm() {
+    var value = renderLimitHint();
+    if (value === null) {
+      return null;
+    }
+    return {
+      previewLimit: value,
+      previewMode: dom.mode.value,
+      trailingSeparator: dom.sep.value === 'true'
+    };
+  }
+
+  function renderCurrent() {
+    var config = SseView.readConfig(window.localStorage, defaults);
+    dom.current.textContent = JSON.stringify(config, null, 2);
+    dom.source.textContent = hasLocalConfig() ? '（来源：本机 localStorage 配置）' : '（来源：默认值）';
+  }
+
+  function renderDefaultTags() {
+    dom.tagLimit.textContent = '默认 ' + defaults.previewLimit;
+    dom.tagMode.textContent = '默认 ' + defaults.previewMode;
+    dom.tagSep.textContent = '默认 ' + (defaults.trailingSeparator ? '补' : '不补');
+  }
+
+  dom.limit.addEventListener('input', function () {
+    var value = renderLimitHint();
+    if (value === null) {
+      setStatus('预览字符数不合法', 'err');
+    } else {
+      setStatus('');
+    }
+  });
+
+  dom.save.addEventListener('click', function () {
+    var form = readForm();
+    if (!form) {
+      setStatus('保存失败：预览字符数不合法', 'err');
+      return;
+    }
+    var saved = SseView.writeConfig(window.localStorage, form, defaults);
+    fillForm(saved);
+    setStatus('已保存（SSE Tab 立即生效）', 'ok');
+  });
+
+  dom.reset.addEventListener('click', function () {
+    SseView.clearConfig(window.localStorage);
+    fillForm(defaults);
+    setStatus('已恢复默认值', 'info');
+  });
+
+  // 默认值来自 package.json 的 whistleConfig.inspectorConfig
+  fetch('./api/defaults')
+    .then(function (res) {
+      return res.ok ? res.json() : null;
+    })
+    .then(function (json) {
+      if (json) {
+        defaults = SseView.normalizeDefaults(json);
+      }
+    })
+    .catch(function () {
+      /* 取不到就用内置默认值 */
+    })
+    .then(function () {
+      renderDefaultTags();
+      fillForm(SseView.readConfig(window.localStorage, defaults));
+    });
+})();
+</script>
+</body>
+</html>

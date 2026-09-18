@@ -51,27 +51,21 @@ w2 start -A /path/to/plugins-root     # plugins-root/whistle.sse-viewer/package.
 3. 点击 **SSE** 标签（本插件是当前唯一注册的 Response Tab，按钮直接显示为 `SSE`；若同时装了其它同类插件，则位于 `Plugins` 标签内）
 4. 流式过程中内容持续追加；`View All` 查看全量，`Copy All` 直接复制
 
-## 配置（可选）
+## 配置
 
-在插件 `package.json` 的 `whistleConfig.inspectorConfig` 中调整，改完执行 `w2 restart` 生效：
+在 Whistle 里打开 **Plugins → whistle.sse-viewer → Option**，即可在配置页里调整；配置保存在本机浏览器的 **localStorage**（键名 `whistle.sse-viewer.config`），**保存后立即生效**，无需重启 Whistle，也无需修改 `package.json`。
 
-```json
-{
-  "whistleConfig": {
-    "inspectorConfig": {
-      "previewLimit": 3000,
-      "previewMode": "tail",
-      "trailingSeparator": false
-    }
-  }
-}
-```
-
-| 字段 | 默认值 | 说明 |
+| 选项 | 默认值 | 说明 |
 | --- | --- | --- |
-| `previewLimit` | `3000` | 预览区展示的字符数 |
-| `previewMode` | `tail` | `tail` 取尾部（推荐，流式内容最新部分最有价值），`head` 取头部 |
-| `trailingSeparator` | `false` | 是否在结尾补 `\n\n` |
+| 预览字符数 `previewLimit` | `3000` | 内容区最多展示多少字符；**填 `-1` 表示不裁剪，直接显示完整内容** |
+| 预览区取哪一段 `previewMode` | `tail` | 下拉选择：`tail` 尾部（推荐，流式场景最新内容优先）/ `head` 头部 |
+| 结尾补空行 `trailingSeparator` | `false` | 下拉选择：`true` 时在结尾补 `\n\n`，与原始流字节完全一致 |
+
+补充说明：
+
+- 配置按**浏览器**保存（换浏览器 / 隐身窗口会回到默认值）；`View All` 弹窗始终展示完整内容，不受 `previewLimit` 影响
+- `package.json` 的 `whistleConfig.inspectorConfig` 仅作为**默认值**（配置页会展示它）；需要改默认值时改它并 `w2 restart`
+- 配置页里点 **恢复默认** 会清除 localStorage 中的配置
 
 ## 工作原理
 

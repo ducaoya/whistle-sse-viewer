@@ -139,4 +139,95 @@ test('getResFrames: frames 非数组时安全返回空数组', () => {
   assert.deepStrictEqual(SseView.getResFrames({}), []);
 });
 
+/* ---------- 配置（Options 页 / localStorage） ---------- */
+
+function createStorage(initial) {
+  const map = Object.assign({}, initial);
+  return {
+    getItem: (key) => (key in map ? map[key] : null),
+    setItem: (key, value) => {
+      map[key] = String(value);
+    },
+    removeItem: (key) => {
+      delete map[key];
+    }
+  };
+}
+
+test('normalizeConfig: 空值返回内置默认', () => {
+  assert.deepStrictEqual(SseView.normalizeConfig(null), {
+    previewLimit: 3000,
+    previewMode: 'tail',
+    trailingSeparator: false
+  });
+});
+
+test('normalizeConfig: previewLimit=-1 保留（表示不裁剪）', () => {
+  assert.strictEqual(SseView.normalizeConfig({ previewLimit: -1 }).previewLimit, -1);
+});
+
+test('normalizeConfig: 非法 previewLimit 回退默认', () => {
+  [-5, 0, 1.5, NaN, Infinity, 'abc'].forEach((bad) => {
+    assert.strictEqual(SseView.normalizeConfig({ previewLimit: bad }).previewLimit, 3000, 'bad=' + bad);
+  });
+});
+
+test('normalizeConfig: 字符串数字可被接受', () => {
+  assert.strictEqual(SseView.normalizeConfig({ previewLimit: '5000' }).previewLimit, 5000);
+  assert.strictEqual(SseView.normalizeConfig({ previewLimit: '-1' }).previewLimit, -1);
+});
+
+test('normalizeConfig: previewMode / trailingSeparator 校验', () => {
+  assert.strictEqual(SseView.normalizeConfig({ previewMode: 'head' }).previewMode, 'head');
+  assert.strictEqual(SseView.normalizeConfig({ previewMode: 'x' }).previewMode, 'tail');
+  assert.strictEqual(SseView.normalizeConfig({ trailingSeparator: true }).trailingSeparator, true);
+  assert.strictEqual(SseView.normalizeConfig({ trailingSeparator: 'yes' }).trailingSeparator, false);
+});
+
+test('normalizeConfig: 自定义默认值生效并作为回退', () => {
+  const defaults = { previewLimit: 800, previewMode: 'head', trailingSeparator: true };
+  assert.deepStrictEqual(SseView.normalizeConfig(null, defaults), defaults);
+  assert.deepStrictEqual(SseView.normalizeConfig({ previewLimit: 'bad' }, defaults), defaults);
+  assert.strictEqual(SseView.normalizeConfig({ previewLimit: 100 }, defaults).previewMode, 'head');
+});
+
+test('readConfig: 无存储时返回默认值', () => {
+  assert.deepStrictEqual(SseView.readConfig(null), SseView.DEFAULT_CONFIG);
+  assert.deepStrictEqual(SseView.readConfig(createStorage()), SseView.DEFAULT_CONFIG);
+});
+
+test('readConfig: 读取 localStorage 并覆盖默认值', () => {
+  const storage = createStorage({
+    [SseView.CONFIG_KEY]: JSON.stringify({ previewLimit: -1, previewMode: 'head', trailingSeparator: true })
+  });
+  assert.deepStrictEqual(SseView.readConfig(storage), {
+    previewLimit: -1,
+    previewMode: 'head',
+    trailingSeparator: true
+  });
+});
+
+test('readConfig: JSON 损坏时回退默认值', () => {
+  const storage = createStorage({ [SseView.CONFIG_KEY]: '{not-json' });
+  assert.deepStrictEqual(SseView.readConfig(storage), SseView.DEFAULT_CONFIG);
+});
+
+test('writeConfig / readConfig 往返一致，clearConfig 后回退默认', () => {
+  const storage = createStorage();
+  const saved = SseView.writeConfig(storage, { previewLimit: 100, previewMode: 'head', trailingSeparator: true });
+  assert.strictEqual(saved.previewLimit, 100);
+  assert.strictEqual(SseView.readConfig(storage).previewLimit, 100);
+  SseView.clearConfig(storage);
+  assert.deepStrictEqual(SseView.readConfig(storage), SseView.DEFAULT_CONFIG);
+});
+
+test('buildPreview: limit=-1 不裁剪，返回完整内容', () => {
+  const long = 'x'.repeat(9000);
+  const result = SseView.buildPreview(long, -1);
+  assert.strictEqual(result.truncated, false);
+  assert.strictEqual(result.unlimited, true);
+  assert.strictEqual(result.text.length, 9000);
+  assert.strictEqual(result.omitted, 0);
+});
+
 console.log('\n通过 ' + passed + ' 项' + (process.exitCode ? '（存在失败）' : ''));
