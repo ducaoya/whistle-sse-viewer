@@ -97,6 +97,5 @@ README 通过 `https://raw.githubusercontent.com/ducaoya/whistle-sse-viewer/mast
 
 | 文件 | 内容 |
 | --- | --- |
-| `docs/images/tab-entry.png` | 入口：Network 选中 SSE 请求 + Response 区的 `SSE` 标签 |
-| `docs/images/tab-preview.png` | 预览区 + 右上角 `View All` / `Copy All` 按钮 |
-| `docs/images/view-all.png` | 近全屏的 `View All` 弹窗 |
+| `docs/images/tab-overview.png` | 入口与预览：Network 选中 SSE 请求 + Response 区 `SSE` 标签 + 右上角 `View All` / `Copy All`（红框标注） |
+| `docs/images/view-all.png` | `View All` 近全屏弹窗 |

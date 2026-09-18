@@ -10,17 +10,11 @@ Whistle 插件：在 **Response 面板**新增一个 **SSE** Tab，用于查看�
 
 ## 界面
 
-![SSE Tab 入口](https://raw.githubusercontent.com/ducaoya/whistle-sse-viewer/master/docs/images/tab-entry.png)
+选中 SSE 请求后，在 **Response** 区域点击 `SSE` 标签：内容区实时追加流内容（超出预览上限时提示“已省略前 N 个字符”），右上角提供 `View All`（近全屏弹窗查看完整内容）与 `Copy All`（一键复制）。
 
-选中 SSE 请求后，在 Response 区域点击 `SSE` 标签。
+![SSE Tab 入口与内容预览](https://raw.githubusercontent.com/ducaoya/whistle-sse-viewer/master/docs/images/tab-overview.png)
 
-![预览与操作按钮](https://raw.githubusercontent.com/ducaoya/whistle-sse-viewer/master/docs/images/tab-preview.png)
-
-内容区实时追加；右上角为 `View All` / `Copy All`。
-
-![View All 弹窗](https://raw.githubusercontent.com/ducaoya/whistle-sse-viewer/master/docs/images/view-all.png)
-
-`View All` 弹窗覆盖整个 Whistle 界面，展示完整内容。
+![View All 近全屏弹窗](https://raw.githubusercontent.com/ducaoya/whistle-sse-viewer/master/docs/images/view-all.png)
 
 ## 安装
 
